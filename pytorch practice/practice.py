@@ -5,8 +5,9 @@ import numpy as np
 
 # Tensor init
 displaySection = False
-
 if displaySection:
+    print("* Tensor Init *")
+
     data = [[1, 2], [3, 4]]
     xData = torch.tensor(data)
 
@@ -17,9 +18,11 @@ if displaySection:
     print(xNp)
 
     xOnes = torch.ones_like(xData) # retains the properties of xData
+
     print(f"Ones Tensor: \n {xOnes} \n")
 
     xRand = torch.rand_like(xData, dtype=torch.float) # overrides the datatype of xData
+
     print(f"Random Tensor: \n {xRand} \n")
 
     shape = (2, 3)
@@ -32,13 +35,49 @@ if displaySection:
     print(f"Zeros Tensor: \n {zerosTensor}")
 
 # Tensor attributes
-displaySection = True
+displaySection = False
+if displaySection:
+    print("* Tensor Attributes *")
 
-if displaySection: 
     tensor = torch.rand(3, 4)
 
     print(f"Tensor shape: {tensor.shape}")
     print(f"Tensor datatype: {tensor.dtype}")
-    print(f"Device tensor is stored in: {tensor.device}")
+    print(f"Device tensor is stored on: {tensor.device}")
 
+# Tensor operations
+displaySection = True
 
+if displaySection:
+    print("* Tensor Operations *")
+
+    tensor = torch.rand(3, 4)
+
+    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    tensor = tensor.to(device)
+
+    print(f"Device tensor is stored on: {tensor.device}")
+
+    tensor = torch.ones(4, 4)
+    tensor[:, 1] = 0
+
+    print(tensor)
+
+    combinedTensor = torch.cat([tensor, tensor, tensor], dim = 1)
+
+    print(combinedTensor)
+
+    print(f"tensor.mul(tensor) \n {tensor.mul(tensor)} \n")
+    print(f"tensor * tensor \n {tensor * tensor}")
+
+    print(f"tensor.matmul(tensor.T) \n {tensor.matmul(tensor.T)} \n")
+    print(f"tensor @ tensor.T \n {tensor @ tensor.T}")
+
+    print(tensor, "\n")
+
+    print(tensor.add(5), "\n")
+    print(tensor, "\n")
+
+    tensor.add_(5)
+    print(tensor, "\n")
+    
