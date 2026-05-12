@@ -46,7 +46,7 @@ if displaySection:
     print(f"Device tensor is stored on: {tensor.device}")
 
 # Tensor operations
-displaySection = True
+displaySection = False
 
 if displaySection:
     print("* Tensor Operations *")
@@ -80,4 +80,16 @@ if displaySection:
 
     tensor.add_(5)
     print(tensor, "\n")
-    
+
+# Tensors with Numpy
+displaySection = True
+
+if displaySection:
+    print("* Tensors with Numpy *")
+
+    n = np.ones(5)
+    t = torch.from_numpy(n)
+
+    np.add(n, 1, out = n)
+    print(f"numpy: {n}")
+    print(f"torch: {t}")
