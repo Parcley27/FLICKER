@@ -1,6 +1,8 @@
 /data/raw/lightcurves
 /data/raw/fetch_log.csv
 
+/data/processed/dataset.h5
+
 practice/data/
 
 /playgrounds/
