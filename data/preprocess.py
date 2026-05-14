@@ -379,7 +379,7 @@ def main():
         logger.info(f"Found {len(doneKeys)} already written, skipping")
         tceList = [(ticID, ticIndex, row) for ticID, ticIndex, row in tceList if f"{ticID}/{ticIndex}" not in doneKeys]
 
-    if args.limit != None:
+    if args.limit is not None:
         tceList = tceList[:args.limit]
         logger.info(f"Limiting to first {args.limit} entries")
     
@@ -397,7 +397,7 @@ def main():
 
             lightCurve = loadLightCurve(ticID, row)
 
-            if lightCurve == None:
+            if lightCurve is None:
                 logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} due to load failure")
                 
                 numberSkipped += 1
@@ -408,7 +408,7 @@ def main():
 
                 detrendResult = detrend(times, fluxes, row)
 
-                if detrendResult == None:
+                if detrendResult is None:
                     logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} because of detrend failure")
                     
                     numberSkipped += 1
