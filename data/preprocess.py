@@ -572,5 +572,26 @@ def main():
     avgWorkerTime = sum(workerTimes) / len(workerTimes) if workerTimes else 0.0
     logger.info(f"Averaged {avgWorkerTime:.2f} seconds per TCE (worker time)")
 
+    summaryLines = [
+        "* Summary *",
+        f"Total: {total}, Processed: {numberProcessed} ({numberProcessed / total:.1%}), Skipped: {numberSkipped} ({numberSkipped / total:.1%})",
+   
+    ]
+    for labelIndex, name in labelNames.items():
+        count = labelCounts[labelIndex]
+        percent = 100 * count / numberProcessed if numberProcessed > 0 else 0.0
+        summaryLines.append(f"  {name}: {count} ({percent:.1f}%)")
+
+    summaryLines.append(f"Output file size: {outputSizeMB:.2f} MB / {outputSizeGB:.2f} GB")
+    summaryLines.append(f"Total processing time: {mainEndTime - mainStartTime:.2f} seconds")
+    summaryLines.append(f"Averaged {avgWorkerTime:.2f} seconds per TCE (worker time)")
+
+    summaryPath = args.output.parent / "summary.txt"
+    
+    with open(summaryPath, "w") as f:
+        f.write("\n".join(summaryLines) + "\n")
+
+    logger.info(f"Summary written to {summaryPath}")
+
 if __name__ == "__main__":
     main()
