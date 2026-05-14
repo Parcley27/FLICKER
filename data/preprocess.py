@@ -102,8 +102,8 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
         fluxes = np.concatenate([flux for time, flux in sectors])
 
         # sort both arrays by time
-        sortIndices = np.argsort(times)
-        times, fluxes = times[sortIndices], fluxes[sortIndices]
+        sortOrder = np.argsort(times)
+        times, fluxes = times[sortOrder], fluxes[sortOrder]
 
         nFolds = (times[-1] - times[0]) / float(row["Period"])
 
