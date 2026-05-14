@@ -413,6 +413,40 @@ def main():
                     globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
                     logger.info(f"TIC {ticID}/{tceIndex} views built: global {globalView.shape}, local {localView.shape}, secondary {secondaryView.shape}")
 
+                    # Transit data
+                    period = float(row["Period"])
+                    duration = float(row["Duration"])
+                    depth = float(row["Depth"])
+
+                    # Stellar data
+                    tBandMagnitude = float(row["Tmag"]) if pd.notna(row["Tmag"]) else 0.0
+                    stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else 0.0
+                    stellarRadius = float(row["SRad"]) if pd.notna(row["SRad"]) else 0.0
+
+                    # total instances after quality mask
+                    nPoints = len(times)
+
+                    timeBaseline = times[-1] - times[0]
+
+                    nFolds = min(np.floor(timeBaseline / period), 100)
+                    nFolds = np.log1p(nFolds)
+
+
+                    scalars = np.array([
+                        period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
+                        nFolds, nPoints, globalScaleFactor, localScaleFactor,
+                        secondaryScaleFactor, secondaryPhase
+
+                    ], dtype=np.float32)
+
+                    # Exoplanet transit, single transit, binary system, junk, not sure
+                    consensusLabel = row["Consensus Label"]
+                    labelMap = {"E": 0, "S": 1, "B": 2, "J": 3, "N": 4}
+
+                    # mapped labels
+                    label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
+                    exoplanetLabel = np.int8(1 if label == 0 else 0 ) 
+
             endTime = time.time()
             elapsedTime = endTime - startTime # seconds
             logger.info(f"TIC {ticID}/{tceIndex} processed in {elapsedTime:.3f}s")
