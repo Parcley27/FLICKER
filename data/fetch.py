@@ -305,8 +305,8 @@ def main():
     )
     parser.add_argument("--csv-only", action = "store_true",
         help = "Download the label table only; skip MAST downloads.")
-    parser.add_argument("--workers", type = int, default = 4,
-        help = "Parallel download threads (default 4). Keep at or below 8 to avoid MAST rate limits.")
+    parser.add_argument("--workers", type = int, default = 8,
+        help = "Parallel download threads (default 8). Keep at or below 8 to avoid MAST rate limits.")
     parser.add_argument("--limit", type = int, default = None,
         help = "Process only the first N TIC IDs. Useful for testing.")
     parser.add_argument("--resume", action = "store_true",
