@@ -352,6 +352,7 @@ def processCurveEvent(args: tuple) -> dict:
         "ticIndex": ticIndex,
         "success": False,
         "error": None,
+
     }
 
     try:
@@ -424,6 +425,33 @@ def main():
 
     # convert tic id row to int
     eventsData["TIC ID"] = eventsData["TIC ID"].astype(int)
+
+    # Recover labels for NaN consensus rows via majority vote across individual vetter columns (L1–L8)
+    # exclude ties
+    vetterCols = [c for c in eventsData.columns if c.startswith("L")]
+
+    def majorityVote(row):
+        # Collect all valid (non-NaN, recognised) votes for this row
+        votes = [row[col] for col in vetterCols
+                 if pd.notna(row[col]) and row[col] in ["E", "S", "B", "J", "N"]]
+        
+        if not votes:
+            return np.nan
+        
+        counts = pd.Series(votes).value_counts()
+        if len(counts) > 1 and counts.iloc[0] == counts.iloc[1]:
+            return np.nan
+        
+        return counts.index[0]
+
+    nanMask = eventsData["Consensus Label"].isna()
+    eventsData.loc[nanMask, "Consensus Label"] = eventsData[nanMask].apply(majorityVote, axis=1)
+
+    logger.info(
+        f"Majority vote: resolved {nanMask.sum()} NaN consensus labels, "
+        f"{eventsData['Consensus Label'].isna().sum()} ties"
+
+    )
 
     logger.info(f"Loaded {len(eventsData)} transit events from tce_table.csv")
 
