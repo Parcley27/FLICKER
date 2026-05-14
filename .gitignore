@@ -1,8 +1,7 @@
 /data/raw/lightcurves
 /data/raw/fetch_log.csv
 
-/data/processed/dataset.h5
-/data/processed/summary.txt
+/data/processed/
 
 practice/data/
 
