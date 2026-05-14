@@ -1,5 +1,5 @@
 import argparse
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import lightkurve as lk
 import logging
@@ -9,6 +9,7 @@ import pandas as pd
 from pathlib import Path
 import sys
 import time
+import warnings
 import wotan
 
 globalBins = 201
@@ -41,8 +42,10 @@ logging.basicConfig(
 
 )
 
-# less verbosity from lightcuve over small data loading issues (should cover <~1 pct)
+# less verbosity from lightkurve and astropy over small data loading issues (should cover <~1 pct)
+warnings.filterwarnings("ignore", message=".*tpfmodel.*")
 logging.getLogger("lightkurve").setLevel(logging.WARNING)
+logging.getLogger("astropy").setLevel(logging.ERROR)
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +96,7 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
                 sectors.append((time, flux))
             
             except Exception as exception:
-                logger.warning(f"Error loading {fitsFile} for TIC {ticID}: {exception}")
+                logger.warning(f"TIC {ticID}: skipping {fitsFile.name} ({type(exception).__name__})")
 
         if len(sectors) == 0:
             logger.warning(f"No valid data for TIC {ticID}")
@@ -471,37 +474,41 @@ def main():
 
     mainStartTime = time.time()
 
+    results = []
+
     with ProcessPoolExecutor(max_workers = args.workers) as executor:
-        results = list(executor.map(processCurveEvent, tceList))
+        futures = [executor.submit(processCurveEvent, args) for args in tceList]
 
-    with h5py.File(args.output, "a") as database:
-        for result in results:
-            ticID = result["ticID"]
-            ticIndex = result["ticIndex"]
+        with h5py.File(args.output, "a") as database:
+            for future in as_completed(futures):
+                result = future.result()
+                results.append(result)
 
-            if not result["success"]:
-                logger.warning(f"Skipping TIC {ticID} TCE {ticIndex}: {result['error']}")
-                numberSkipped += 1
-                
-                continue
+                ticID = result["ticID"]
+                ticIndex = result["ticIndex"]
 
-            group = database.create_group(f"{ticID}/{ticIndex}")
+                if not result["success"]:
+                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex}: {result['error']}")
+                    numberSkipped += 1
+                    continue
 
-            group.create_dataset("globalView", data = result["globalView"])
-            group.create_dataset("localView", data = result["localView"])
-            group.create_dataset("secondaryView", data = result["secondaryView"])
-            group.create_dataset("scalars", data = result["scalars"])
-            group.create_dataset("label", data = result["label"])
-            group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
+                group = database.create_group(f"{ticID}/{ticIndex}")
 
-            group.attrs["ticID"] = ticID
-            group.attrs["period"] = result["period"]
-            group.attrs["epoch"] = result["epoch"]
-            group.attrs["split"] = result["split"]
+                group.create_dataset("globalView", data = result["globalView"])
+                group.create_dataset("localView", data = result["localView"])
+                group.create_dataset("secondaryView", data = result["secondaryView"])
+                group.create_dataset("scalars", data = result["scalars"])
+                group.create_dataset("label", data = result["label"])
+                group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
 
-            logger.info(f"TIC {ticID}/{ticIndex} written ({result['elapsed']:.2f}s)")
-            numberProcessed += 1
-            labelCounts[int(result["label"])] += 1
+                group.attrs["ticID"] = ticID
+                group.attrs["period"] = result["period"]
+                group.attrs["epoch"] = result["epoch"]
+                group.attrs["split"] = result["split"]
+
+                logger.info(f"TIC {ticID}/{ticIndex} written ({result['elapsed']:.2f}s)")
+                numberProcessed += 1
+                labelCounts[int(result["label"])] += 1
 
     # normalize scalars
     trainingScalars = []
