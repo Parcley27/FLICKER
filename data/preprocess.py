@@ -1,14 +1,14 @@
 import argparse
+import json
+import lightkurve as lk
 import logging
 import h5py
-import pandas as pd
 import numpy as np
-import sys
-import lightkurve as lk
-import wotan
-import time
-
+import pandas as pd
 from pathlib import Path
+import sys
+import time
+import wotan
 
 globalBins = 201
 localBins = 61
@@ -332,6 +332,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
 
 def main():
+    mainStartTime = time.time()
+
     args = parseArgs()
 
     eventsData = pd.read_csv(tceTable, comment = "#")
@@ -382,7 +384,12 @@ def main():
         logger.info(f"Limiting to first {args.limit} entries")
     
     # creates output dir if doesn't exist
-    args.output.parent.mkdir(parents = True, exist_ok = True)
+    args.output.parent.mkdir(parents = True, exist_ok = True)\
+    
+    numberProcessed = 0
+    numberSkipped = 0
+
+    labelCounts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, -1: 0}
 
     with h5py.File(args.output, "a") as database:
         for ticID, ticIndex, row in tceList:
@@ -392,6 +399,8 @@ def main():
 
             if lightCurve == None:
                 logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} due to load failure")
+                
+                numberSkipped += 1
             
             else:
                 times, fluxes = lightCurve
@@ -400,7 +409,9 @@ def main():
                 detrendResult = detrend(times, fluxes, row)
 
                 if detrendResult == None:
-                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} because of detrend failure...")
+                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} because of detrend failure")
+                    
+                    numberSkipped += 1
                 
                 else:
                     flatFlux, trend = detrendResult
@@ -435,7 +446,6 @@ def main():
                     nFolds = min(np.floor(timeBaseline / period), 100)
                     nFolds = np.log1p(nFolds)
 
-
                     scalars = np.array([
                         period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
                         nFolds, nPoints, globalScaleFactor, localScaleFactor,
@@ -466,10 +476,72 @@ def main():
                     group.attrs["split"] = split
 
                     logger.info(f"TIC {ticID}/{ticIndex} data written to database")
+                    numberProcessed += 1
+                    labelCounts[int(label)] += 1
 
             endTime = time.time()
             elapsedTime = endTime - startTime # seconds
             logger.info(f"TIC {ticID}/{ticIndex} processed in {elapsedTime:.3f}s")
+
+    # normalize scalars
+    trainingScalars = []
+
+    with h5py.File(args.output, "r") as database:
+        for starGroup in database.values():
+            for tceGroup in starGroup.values():
+                if tceGroup.attrs["split"] == "train":
+                    trainingScalars.append(tceGroup["scalars"][:])
+
+    if len(trainingScalars) == 0:
+        logger.warning("No training TCEs found so skipping scalar normalisation")
+
+    else:
+        trainingScalars = np.array(trainingScalars)  # (n_train, 12)
+
+        scalarMean = np.mean(trainingScalars, axis=0)
+        scalarStd = np.std(trainingScalars, axis=0)
+        scalarStd[scalarStd == 0] = 1.0  # guard against constant features
+
+        scalarStats = {"mean": scalarMean.tolist(), "std": scalarStd.tolist()}
+        statsPath = processedDir / "scalar_stats.json"
+        statsPath.write_text(json.dumps(scalarStats, indent=2))
+        logger.info(f"Scalar stats written to {statsPath}")
+
+        with h5py.File(args.output, "r+") as database:
+            for starGroup in database.values():
+                for tceGroup in starGroup.values():
+                    raw = tceGroup["scalars"][:]
+                    normalised = ((raw - scalarMean) / scalarStd).astype(np.float32)
+
+                    del tceGroup["scalars"]
+
+                    tceGroup.create_dataset("scalars", data=normalised)
+
+        logger.info("Scalars normalised and written back to HDF5")
+
+    mainEndTime = time.time()
+
+    # summary stats
+    labelNames = {0: "Exoplanet", 1: "Single Transit", 2: "Binary System", 3: "Junk", 4: "Not Sure", -1: "Unlabeled"}
+    total = numberProcessed + numberSkipped
+
+    print()
+    logger.info("* Summary *")
+    logger.info(f"Total: {total}, Processed: {numberProcessed} ({numberProcessed / total:.1%}), Skipped: {numberSkipped} ({numberSkipped / total:.1%})")
+
+    for labelIndex, name in labelNames.items():
+        count = labelCounts[labelIndex]
+        percent = 100 * count / numberProcessed if numberProcessed > 0 else 0.0
+
+        logger.info(f"  {name}: {count} ({percent:.1f}%)")
+
+    outputSizeMB = args.output.stat().st_size / (1024 * 1024)
+    outputSizeGB = args.output.stat().st_size / (1024 * 1024 * 1024)
+
+    logger.info(f"Output file size: {outputSizeMB:.2f} MB / {outputSizeGB:.2f} GB")
+
+    logger.info(f"Total processing time: {mainEndTime - mainStartTime:.2f} seconds")
+    logger.info(f"Averaged {(mainEndTime - mainStartTime) / total:.2f} seconds per TCE")
 
 if __name__ == "__main__":
     main()
