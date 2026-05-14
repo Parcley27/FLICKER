@@ -44,7 +44,7 @@ logging.getLogger("lightkurve").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-def parseArgs():
+def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Preprocess data for neural network")
 
     parser.add_argument("--delete-fits", action = "store_true",
@@ -62,7 +62,7 @@ def parseArgs():
 
     return args
 
-def loadLightCurve(ticID, row):
+def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
     ticPath = lightcurveDir / f"{ticID}"
 
     fitsList = list(ticPath.rglob("*.fits"))
@@ -114,7 +114,7 @@ def loadLightCurve(ticID, row):
         
         return (times, fluxes)
 
-def detrend(times, fluxes, row):
+def detrend(times, fluxes, row) -> tuple[np.ndarray, np.ndarray] | None:
     period = float(row["Period"])
     epoch  = float(row["Epoch"])
     duration = float(row["Duration"])
