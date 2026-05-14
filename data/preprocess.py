@@ -1,4 +1,5 @@
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 import json
 import lightkurve as lk
 import logging
@@ -48,6 +49,8 @@ logger = logging.getLogger(__name__)
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Preprocess data for neural network")
 
+    # 16 is probably good for i7 14700kf
+    # 8 pcores plus 12 ecores - a few for other stuff
     parser.add_argument("--workers", type = int, default = 4,
         help = "Parallel worker threads (default 4)")
     parser.add_argument("--limit", type = int, default = None,
@@ -337,9 +340,78 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
 
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
 
-def main():
-    mainStartTime = time.time()
+def processCurveEvent(args: tuple) -> dict:
+    ticID, ticIndex, row = args
+    startTime = time.time()
 
+    result = {
+        "ticID": ticID,
+        "ticIndex": ticIndex,
+        "success": False,
+        "error": None,
+    }
+
+    try:
+        lightCurve = loadLightCurve(ticID, row)
+
+        if lightCurve is not None:
+            times, fluxes = lightCurve
+
+            detrendResult = detrend(times, fluxes, row)
+
+            if detrendResult is not None:
+                flatFlux, trend = detrendResult
+
+                phases, flatFlux = phaseFold(times, flatFlux, row)
+
+                globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
+
+                period = float(row["Period"])
+                duration = float(row["Duration"])
+                depth = float(row["Depth"])
+                tBandMagnitude = float(row["Tmag"]) if pd.notna(row["Tmag"]) else 0.0
+                stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else 0.0
+                stellarRadius = float(row["SRad"]) if pd.notna(row["SRad"]) else 0.0
+                epoch = float(row["Epoch"])
+                split = str(row["Split"])
+
+                nPoints = len(times)
+                timeBaseline = times[-1] - times[0]
+                nFolds = np.log1p(min(np.floor(timeBaseline / period), 100))
+
+                scalars = np.array([
+                    period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
+                    nFolds, nPoints, globalScaleFactor, localScaleFactor,
+                    secondaryScaleFactor, secondaryPhase
+
+                ], dtype=np.float32)
+
+                consensusLabel = row["Consensus Label"]
+                labelMap = {"E": 0, "S": 1, "B": 2, "J": 3, "N": 4}
+                label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
+                exoplanetLabel = np.int8(1 if label == 0 else 0)
+
+                result.update({
+                    "success": True,
+                    "globalView": globalView.astype(np.float32),
+                    "localView": localView.astype(np.float32),
+                    "secondaryView": secondaryView.astype(np.float32),
+                    "scalars": scalars,
+                    "label": label,
+                    "exoplanetLabel": exoplanetLabel,
+                    "period": period,
+                    "epoch": epoch,
+                    "split": split,
+                    "elapsed": time.time() - startTime,
+
+                })
+
+    except Exception as exception:
+        result["error"] = str(exception)
+
+    return result
+
+def main():
     args = parseArgs()
 
     eventsData = pd.read_csv(tceTable, comment = "#")
@@ -397,97 +469,39 @@ def main():
 
     labelCounts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, -1: 0}
 
+    mainStartTime = time.time()
+
+    with ProcessPoolExecutor(max_workers = args.workers) as executor:
+        results = list(executor.map(processCurveEvent, tceList))
+
     with h5py.File(args.output, "a") as database:
-        for ticID, ticIndex, row in tceList:
-            startTime = time.time()
+        for result in results:
+            ticID = result["ticID"]
+            ticIndex = result["ticIndex"]
 
-            lightCurve = loadLightCurve(ticID, row)
-
-            if lightCurve is None:
-                logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} due to load failure")
-                
+            if not result["success"]:
+                logger.warning(f"Skipping TIC {ticID} TCE {ticIndex}: {result['error']}")
                 numberSkipped += 1
-            
-            else:
-                times, fluxes = lightCurve
-                logger.info(f"TIC {ticID}/{ticIndex}: {len(times)} instances loaded")
-
-                detrendResult = detrend(times, fluxes, row)
-
-                if detrendResult is None:
-                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} because of detrend failure")
-                    
-                    numberSkipped += 1
                 
-                else:
-                    flatFlux, trend = detrendResult
+                continue
 
-                    logger.info(f"TIC {ticID}/{ticIndex} properly detrended")
+            group = database.create_group(f"{ticID}/{ticIndex}")
 
-                    phases, flatFlux = phaseFold(times, flatFlux, row)
-                    logger.info(f"TIC {ticID}/{ticIndex} folded into {len(phases)} phases")
+            group.create_dataset("globalView", data = result["globalView"])
+            group.create_dataset("localView", data = result["localView"])
+            group.create_dataset("secondaryView", data = result["secondaryView"])
+            group.create_dataset("scalars", data = result["scalars"])
+            group.create_dataset("label", data = result["label"])
+            group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
 
-                    globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
-                    logger.info(f"TIC {ticID}/{ticIndex} views built: global {globalView.shape}, local {localView.shape}, secondary {secondaryView.shape}")
+            group.attrs["ticID"] = ticID
+            group.attrs["period"] = result["period"]
+            group.attrs["epoch"] = result["epoch"]
+            group.attrs["split"] = result["split"]
 
-                    # Transit data
-                    period = float(row["Period"])
-                    duration = float(row["Duration"])
-                    depth = float(row["Depth"])
-
-                    # Stellar data
-                    tBandMagnitude = float(row["Tmag"]) if pd.notna(row["Tmag"]) else 0.0
-                    stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else 0.0
-                    stellarRadius = float(row["SRad"]) if pd.notna(row["SRad"]) else 0.0
-
-                    # Extra data
-                    epoch = float(row["Epoch"])
-                    split = str(row["Split"])
-
-                    # total instances after quality mask
-                    nPoints = len(times)
-
-                    timeBaseline = times[-1] - times[0]
-
-                    nFolds = min(np.floor(timeBaseline / period), 100)
-                    nFolds = np.log1p(nFolds)
-
-                    scalars = np.array([
-                        period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
-                        nFolds, nPoints, globalScaleFactor, localScaleFactor,
-                        secondaryScaleFactor, secondaryPhase
-
-                    ], dtype=np.float32)
-
-                    # Exoplanet transit, single transit, binary system, junk, not sure
-                    consensusLabel = row["Consensus Label"]
-                    labelMap = {"E": 0, "S": 1, "B": 2, "J": 3, "N": 4}
-
-                    # mapped labels
-                    label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
-                    exoplanetLabel = np.int8(1 if label == 0 else 0 ) 
-
-                    group = database.create_group(f"{ticID}/{ticIndex}")
-
-                    group.create_dataset("globalView", data = globalView)
-                    group.create_dataset("localView", data = localView)
-                    group.create_dataset("secondaryView", data = secondaryView)
-                    group.create_dataset("scalars", data = scalars)
-                    group.create_dataset("label", data = label)
-                    group.create_dataset("exoplanetLabel", data = exoplanetLabel)
-
-                    group.attrs["ticID"] = ticID
-                    group.attrs["period"] = period
-                    group.attrs["epoch"] = epoch
-                    group.attrs["split"] = split
-
-                    logger.info(f"TIC {ticID}/{ticIndex} data written to database")
-                    numberProcessed += 1
-                    labelCounts[int(label)] += 1
-
-            endTime = time.time()
-            elapsedTime = endTime - startTime # seconds
-            logger.info(f"TIC {ticID}/{ticIndex} processed in {elapsedTime:.3f}s")
+            logger.info(f"TIC {ticID}/{ticIndex} written ({result['elapsed']:.2f}s)")
+            numberProcessed += 1
+            labelCounts[int(result["label"])] += 1
 
     # normalize scalars
     trainingScalars = []
@@ -547,7 +561,9 @@ def main():
     logger.info(f"Output file size: {outputSizeMB:.2f} MB / {outputSizeGB:.2f} GB")
 
     logger.info(f"Total processing time: {mainEndTime - mainStartTime:.2f} seconds")
-    logger.info(f"Averaged {(mainEndTime - mainStartTime) / total:.2f} seconds per TCE")
+    workerTimes = [r["elapsed"] for r in results if r["success"]]
+    avgWorkerTime = sum(workerTimes) / len(workerTimes) if workerTimes else 0.0
+    logger.info(f"Averaged {avgWorkerTime:.2f} seconds per TCE (worker time)")
 
 if __name__ == "__main__":
     main()
