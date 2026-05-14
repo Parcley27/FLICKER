@@ -2,7 +2,9 @@ import argparse
 import logging
 import h5py
 import pandas as pd
+import numpy as np
 import sys
+import lightkurve as lk
 
 from pathlib import Path
 
@@ -36,6 +38,9 @@ logging.basicConfig(
 
 )
 
+# less verbosity from lightcuve over small data loading issues (should cover <~1 pct)
+logging.getLogger("lightkurve").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 def parseArgs():
@@ -56,6 +61,59 @@ def parseArgs():
 
     return args
 
+def loadLightCurve(ticID, row):
+    ticPath = lightcurveDir / f"{ticID}"
+
+    fitsList = list(ticPath.rglob("*.fits"))
+
+    if len(fitsList) == 0:
+        logger.warning(f"No data found for TIC {ticID}")
+
+        return None
+
+    else:
+        logger.info(f"Found {len(fitsList)} files for TIC {ticID}")
+
+        sectors = []
+
+        for fitsFile in fitsList:
+            try:
+                lightCurve =lk.io.read(fitsFile, quality_bitmask = bitmaskQuality)
+
+                time = lightCurve.time.value
+                flux = lightCurve.flux.value
+
+                mask = ~np.isnan(flux)
+
+                time, flux = time[mask], flux[mask]
+
+                sectors.append((time, flux))
+            
+            except Exception as exception:
+                logger.warning(f"Error loading {fitsFile} for TIC {ticID}: {exception}")
+
+        if len(sectors) == 0:
+            logger.warning(f"No valid data for TIC {ticID}")
+
+            return None
+
+        times = np.concatenate([time for time, flux in sectors])
+        fluxes = np.concatenate([flux for time, flux in sectors])
+
+        # sort both arrays by time
+        sortIndices = np.argsort(times)
+        times, fluxes = times[sortIndices], fluxes[sortIndices]
+
+        nFolds = (times[-1] - times[0]) / float(row["Period"])
+
+        if nFolds < 3:
+            logger.warning(f"Not enough folds for TIC {ticID}, skipping...")
+
+            return None
+        
+        return (times, fluxes)
+
+
 def main():
     args = parseArgs()
 
@@ -75,7 +133,7 @@ def main():
     logger.info(f"Loaded {len(fetchLogData)} entries from fetch_log.csv")
 
     fetchLogData = fetchLogData[fetchLogData["status"] == "ok"]
-    logger.info(f"{len(fetchLogData)} entries with status 'ok'")
+    logger.info(f"{len(fetchLogData)} entries with 'ok' status")
 
     availableStars = set(fetchLogData["ticID"])
 
@@ -84,9 +142,9 @@ def main():
 
     tceList = []
 
-    for ticId, group in eventsData.groupby("TIC ID"):
+    for ticID, group in eventsData.groupby("TIC ID"):
         for tceIndex, (_, row) in enumerate(group.iterrows()):
-            tceList.append((ticId, tceIndex, row))
+            tceList.append((ticID, tceIndex, row))
 
     logger.info(f"Built TCE list with {len(tceList)} entries")
 
@@ -110,9 +168,15 @@ def main():
     args.output.parent.mkdir(parents = True, exist_ok = True)
 
     with h5py.File(args.output, "a") as database:
-        pass
+        for ticID, ticIndex, row in tceList:
+            lightCurve = loadLightCurve(ticID, row)
 
-    print("Part 1 done...")
+            if lightCurve is None:
+                logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} due to load failure")
+            
+            else:
+                times, fluxes = lightCurve
+                logger.info(f"TIC {ticID}/{tceIndex}: {len(times)} instances loaded")
 
 if __name__ == "__main__":
     main()
