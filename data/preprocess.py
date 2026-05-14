@@ -423,6 +423,10 @@ def main():
                     stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else 0.0
                     stellarRadius = float(row["SRad"]) if pd.notna(row["SRad"]) else 0.0
 
+                    # Extra data
+                    epoch = float(row["Epoch"])
+                    split = str(row["Split"])
+
                     # total instances after quality mask
                     nPoints = len(times)
 
@@ -447,9 +451,25 @@ def main():
                     label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
                     exoplanetLabel = np.int8(1 if label == 0 else 0 ) 
 
+                    group = database.create_group(f"{ticID}/{ticIndex}")
+
+                    group.create_dataset("globalView", data = globalView)
+                    group.create_dataset("localView", data = localView)
+                    group.create_dataset("secondaryView", data = secondaryView)
+                    group.create_dataset("scalars", data = scalars)
+                    group.create_dataset("label", data = label)
+                    group.create_dataset("exoplanetLabel", data = exoplanetLabel)
+
+                    group.attrs["ticID"] = ticID
+                    group.attrs["period"] = period
+                    group.attrs["epoch"] = epoch
+                    group.attrs["split"] = split
+
+                    logger.info(f"TIC {ticID}/{ticIndex} data written to database")
+
             endTime = time.time()
             elapsedTime = endTime - startTime # seconds
-            logger.info(f"TIC {ticID}/{tceIndex} processed in {elapsedTime:.3f}s")
+            logger.info(f"TIC {ticID}/{ticIndex} processed in {elapsedTime:.3f}s")
 
 if __name__ == "__main__":
     main()
