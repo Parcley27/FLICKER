@@ -2,6 +2,7 @@
 /data/raw/fetch_log.csv
 
 /data/processed/dataset.h5
+/data/processed/summary.txt
 
 practice/data/
 
