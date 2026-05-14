@@ -48,8 +48,6 @@ logger = logging.getLogger(__name__)
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Preprocess data for neural network")
 
-    parser.add_argument("--delete-fits", action = "store_true",
-        help = "Delete raw files after completion")
     parser.add_argument("--workers", type = int, default = 4,
         help = "Parallel worker threads (default 4)")
     parser.add_argument("--limit", type = int, default = None,
