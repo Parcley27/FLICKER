@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import sys
 import lightkurve as lk
+import wotan
 
 from pathlib import Path
 
@@ -113,6 +114,46 @@ def loadLightCurve(ticID, row):
         
         return (times, fluxes)
 
+def detrend(times, fluxes, row):
+    period = float(row["Period"])
+    epoch  = float(row["Epoch"])
+    duration = float(row["Duration"])
+
+    # max number of folds to consider
+    nMinimum = np.floor((times[0] - epoch) / period)
+    nMaximum = np.ceil((times[-1] - epoch) / period)
+
+    # fold centers
+    centres = epoch + np.arange(nMinimum, nMaximum + 1) * period
+
+    # times (column vector) - centers (row vector) == 2d time difference matrix
+    # np.any collapses to one boolean per time, true if transit is found
+    transitMask = np.any(np.abs(times[:, None] - centres[None, :]) < 0.5 * duration, axis = 1)
+
+    # check if transitmask is all true
+    if np.all(transitMask):
+        logger.warning("All data points are in transit, skipping...")
+
+        return None
+    
+    try:
+        # wotan settings based on Astronet V2 paper
+        flatFlux, trend = wotan.flatten(
+            times, fluxes, 
+            mask = transitMask, 
+            method = "biweight",
+            window_length = detrendWindow,
+            return_trend = True,
+
+        )
+    
+    except Exception as exception:
+        logger.warning(f"Error during detrending: {exception}")
+
+        return None
+    
+    return (flatFlux, trend)
+
 
 def main():
     args = parseArgs()
@@ -171,12 +212,22 @@ def main():
         for ticID, ticIndex, row in tceList:
             lightCurve = loadLightCurve(ticID, row)
 
-            if lightCurve is None:
+            if lightCurve == None:
                 logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} due to load failure")
             
             else:
                 times, fluxes = lightCurve
                 logger.info(f"TIC {ticID}/{tceIndex}: {len(times)} instances loaded")
+
+                detrendResult = detrend(times, fluxes, row)
+
+                if detrendResult == None:
+                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex} because of detrend failure...")
+                
+                else:
+                    flatFlux, trend = detrendResult
+
+                    logger.info(f"TIC {ticID}/{tceIndex} properly detrended")
 
 if __name__ == "__main__":
     main()
