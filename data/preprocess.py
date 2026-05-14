@@ -280,17 +280,22 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         secondaryPhase = 0.5
 
     else:
-        windowWidth = duration / period
-
         # slide a window across out-of-transit points, compute mean flux at each position
         # the position with the lowest mean is the secondary eclipse candidate
-        windowAverages = []
+        windowWidth = duration / period
+        searchHalfWidth = windowWidth / 2
 
-        for phase in secondaryPhases:
-            windowAverageFlux = np.mean(secondaryFlux[np.abs(secondaryPhases - phase) < windowWidth / 2])
-            windowAverages.append(windowAverageFlux)
+        # cumulative sum
+        # [a, b, c] -> [a, a + b, a + b + c]
+        cumFlux = np.concatenate([[0.0], np.cumsum(secondaryFlux)])
+
+        leftIndex = np.searchsorted(secondaryPhases, secondaryPhases - searchHalfWidth, side = "left")
+        rightIndex = np.searchsorted(secondaryPhases, secondaryPhases + searchHalfWidth, side = "right")
+        
+        windowAverages = (cumFlux[rightIndex] - cumFlux[leftIndex]) / (rightIndex - leftIndex)
 
         minimumIndex = np.argmin(windowAverages)
+
         secondaryPhase = secondaryPhases[minimumIndex]
 
     # bin a +- halfWidth window centred on the secondary phase, same resolution as local view
