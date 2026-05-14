@@ -116,13 +116,14 @@ def downloadZenodoCsv(recordFiles: dict) -> bool:
 
     expectedChecksum = fileInfo.get("checksum", "").replace("md5:", "") or None
 
-    if csvDestination.exists() and expectedChecksum:
-        if computeMD5Checksum(csvDestination) == expectedChecksum:
+    if csvDestination.exists():
+        if expectedChecksum and computeMD5Checksum(csvDestination) != expectedChecksum:
+            logger.warning("Existing label table checksum mismatch - using existing file anyway")
+            
+        else:
             logger.info("Label table already present and verified - skipping download")
 
-            return True
-        
-        logger.warning("Existing label table checksum mismatch - re-downloading")
+        return True
     
     logger.info(f"Downloading TCE label table ({fileName})")
     rawDir.mkdir(parents = True, exist_ok = True)
