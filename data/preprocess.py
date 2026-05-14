@@ -185,6 +185,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     # finds which bin each phase belongs to and builds an array of those indices
     # -1 shifts to 0 index
     globalBinIndices = np.digitize(phases, globalBinEdges) - 1
+    np.clip(globalBinIndices, 0, globalBins - 1, out = globalBinIndices)
 
     medians, stds = [], []
 
@@ -237,6 +238,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     localBinEdges = np.linspace(-halfWidth, halfWidth, localBins + 1)
 
     localBinIndices = np.digitize(localPhases, localBinEdges) - 1
+    np.clip(localBinIndices, 0, localBins - 1, out = localBinIndices)
 
     medians, stds = [], []
 
@@ -301,6 +303,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     secondaryWindowFlux = flatFlux[secondaryMask]
 
     secondaryBinIndices = np.digitize(secondaryWindowPhases, secondaryBinEdges) - 1
+    np.clip(secondaryBinIndices, 0, secondaryBins - 1, out = secondaryBinIndices)
 
     medians, stds = [], []
 
@@ -404,7 +407,7 @@ def main():
             
             else:
                 times, fluxes = lightCurve
-                logger.info(f"TIC {ticID}/{tceIndex}: {len(times)} instances loaded")
+                logger.info(f"TIC {ticID}/{ticIndex}: {len(times)} instances loaded")
 
                 detrendResult = detrend(times, fluxes, row)
 
@@ -416,13 +419,13 @@ def main():
                 else:
                     flatFlux, trend = detrendResult
 
-                    logger.info(f"TIC {ticID}/{tceIndex} properly detrended")
+                    logger.info(f"TIC {ticID}/{ticIndex} properly detrended")
 
                     phases, flatFlux = phaseFold(times, flatFlux, row)
-                    logger.info(f"TIC {ticID}/{tceIndex} folded into {len(phases)} phases")
+                    logger.info(f"TIC {ticID}/{ticIndex} folded into {len(phases)} phases")
 
                     globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
-                    logger.info(f"TIC {ticID}/{tceIndex} views built: global {globalView.shape}, local {localView.shape}, secondary {secondaryView.shape}")
+                    logger.info(f"TIC {ticID}/{ticIndex} views built: global {globalView.shape}, local {localView.shape}, secondary {secondaryView.shape}")
 
                     # Transit data
                     period = float(row["Period"])
