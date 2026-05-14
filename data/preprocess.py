@@ -172,6 +172,165 @@ def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray]:
 
     return (phases, flatFlux)
 
+def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, float, np.ndarray, float, float]:
+    duration = float(row["Duration"])
+    period = float(row["Period"])
+
+    # whole orbit "global" view
+
+    # "bin" edges needing n + 1 edges for n bins
+    # creates 202 edges from -0.5 to 0.5 inclusive, so 201 bins of width 0.005
+    globalBinEdges = np.linspace(-0.5, 0.5, globalBins + 1)
+
+    # finds which bin each phase belongs to and builds an array of those indices
+    # -1 shifts to 0 index
+    globalBinIndices = np.digitize(phases, globalBinEdges) - 1
+
+    medians, stds = [], []
+
+    # compute median and std of all flatflux points where binindices == i
+    for globalBin in range(globalBins):
+        # gets all flatflux points in the current bin
+        binFlux = flatFlux[globalBinIndices == globalBin]
+
+        if len(binFlux) == 0:
+            # flat baseline
+            median = 1.0
+            std = 0.0
+        
+        else:
+            median = np.median(binFlux)
+            std = np.std(binFlux)
+        
+        medians.append(median)
+        stds.append(std)
+
+    globalBinCentres = 0.5 * (globalBinEdges[:-1] + globalBinEdges[1:])
+
+    # np bool array
+    transitFlags = np.abs(globalBinCentres) < 0.5 * duration / period
+
+    globalView = np.column_stack([medians, stds, transitFlags])
+
+    # median of flux values for out of transit bins
+    # actual "flat" baseline
+    baseline = np.median(globalView[~transitFlags, 0])
+
+    globalView[:, 0] -= baseline
+
+    # normalize -1 ... 1
+    globalScaleFactor = np.min(globalView[:, 0])
+
+    if globalScaleFactor < 0:
+        # min = -1
+        globalView[:, 0] /= -globalScaleFactor
+
+    # local view around the transit
+    # +- 2 transit durations around phase 0
+    halfWidth = (localTransitDurations / 2) * duration / period
+
+    localMask = np.abs(phases) < halfWidth
+
+    localPhases = phases[localMask]
+    localFlux = flatFlux[localMask]
+
+    localBinEdges = np.linspace(-halfWidth, halfWidth, localBins + 1)
+
+    localBinIndices = np.digitize(localPhases, localBinEdges) - 1
+
+    medians, stds = [], []
+
+    for localBin in range(localBins):
+        binFlux = localFlux[localBinIndices == localBin]
+
+        if len(binFlux) == 0:
+            median = 1.0
+            std = 0.0
+        
+        else:
+            median = np.median(binFlux)
+            std = np.std(binFlux)
+        
+        medians.append(median)
+        stds.append(std)
+
+    localView = np.column_stack([medians, stds])
+    
+    localBinCentres = 0.5 * (localBinEdges[:-1] + localBinEdges[1:])
+    localTransitFlags = np.abs(localBinCentres) < 0.5 * duration / period
+
+    baseline = np.median(localView[~localTransitFlags, 0])
+
+    localView[:, 0] -= baseline
+
+    localScaleFactor = np.min(localView[:, 0])
+
+    if localScaleFactor < 0:
+        localView[:, 0] /= -localScaleFactor
+    
+    # secondary view to find the deepest out of transit dip, either secondary elcipse or binary system
+    # search only outside +-2 transit durations so cant refind the primary
+    outOfTransitMask = np.abs(phases) > 2 * duration / period
+
+    secondaryPhases = phases[outOfTransitMask]
+    secondaryFlux = flatFlux[outOfTransitMask]
+
+    if secondaryPhases.size == 0:
+        # fallback as oppisite of transit window
+        secondaryPhase = 0.5
+
+    else:
+        windowWidth = duration / period
+
+        # slide a window across out-of-transit points, compute mean flux at each position
+        # the position with the lowest mean is the secondary eclipse candidate
+        windowAverages = []
+
+        for phase in secondaryPhases:
+            windowAverageFlux = np.mean(secondaryFlux[np.abs(secondaryPhases - phase) < windowWidth / 2])
+            windowAverages.append(windowAverageFlux)
+
+        minimumIndex = np.argmin(windowAverages)
+        secondaryPhase = secondaryPhases[minimumIndex]
+
+    # bin a +- halfWidth window centred on the secondary phase, same resolution as local view
+    secondaryBinEdges = np.linspace(secondaryPhase - halfWidth, secondaryPhase + halfWidth, secondaryBins + 1)
+
+    secondaryMask = (phases >= secondaryPhase - halfWidth) & (phases <= secondaryPhase + halfWidth)
+    secondaryWindowPhases = phases[secondaryMask]
+    secondaryWindowFlux = flatFlux[secondaryMask]
+
+    secondaryBinIndices = np.digitize(secondaryWindowPhases, secondaryBinEdges) - 1
+
+    medians, stds = [], []
+
+    for secondaryBin in range(secondaryBins):
+        binFlux = secondaryWindowFlux[secondaryBinIndices == secondaryBin]
+
+        if len(binFlux) == 0:
+            medians.append(1.0)
+            stds.append(0.0)
+
+        else:
+            medians.append(np.median(binFlux))
+            stds.append(np.std(binFlux))
+
+    secondaryView = np.column_stack([medians, stds])
+
+    # normalise: subtract out-of-transit baseline, scale so minimum = -1
+    secondaryBinCentres = 0.5 * (secondaryBinEdges[:-1] + secondaryBinEdges[1:])
+    secondaryTransitFlags = np.abs(secondaryBinCentres - secondaryPhase) < 0.5 * duration / period
+
+    secondaryBaseline = np.median(secondaryView[~secondaryTransitFlags, 0])
+    secondaryView[:, 0] -= secondaryBaseline
+
+    secondaryScaleFactor = np.min(secondaryView[:, 0])
+
+    if secondaryScaleFactor < 0:
+        secondaryView[:, 0] /= -secondaryScaleFactor
+
+    return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
+
 def main():
     args = parseArgs()
 
@@ -251,8 +410,11 @@ def main():
                     phases, flatFlux = phaseFold(times, flatFlux, row)
                     logger.info(f"TIC {ticID}/{tceIndex} folded into {len(phases)} phases")
 
+                    globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
+                    logger.info(f"TIC {ticID}/{tceIndex} views built: global {globalView.shape}, local {localView.shape}, secondary {secondaryView.shape}")
+
             endTime = time.time()
-            elapsedTime = endTime - startTime # ms
+            elapsedTime = endTime - startTime # seconds
             logger.info(f"TIC {ticID}/{tceIndex} processed in {elapsedTime:.3f}s")
 
 if __name__ == "__main__":
