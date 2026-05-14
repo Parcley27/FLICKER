@@ -6,6 +6,7 @@ import numpy as np
 import sys
 import lightkurve as lk
 import wotan
+import time
 
 from pathlib import Path
 
@@ -154,6 +155,22 @@ def detrend(times, fluxes, row) -> tuple[np.ndarray, np.ndarray] | None:
     
     return (flatFlux, trend)
 
+def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray]:
+    period = float(row["Period"])
+    epoch = float(row["Epoch"])
+
+    # maps each timestamp to 0 ..< 1 based on its position in the expected orbit of the planet
+    phases = ((times - epoch) % period) / period
+    
+    # transit goes at the middle rather than the edge, based off of astronet paper display 
+    # numpy bool indexing
+    phases[phases > 0.5] -= 1.0
+    
+    # sort phase and flatflux by ascending phase
+    sortOrder = np.argsort(phases)
+    phases, flatFlux = phases[sortOrder], flatFlux[sortOrder]
+
+    return (phases, flatFlux)
 
 def main():
     args = parseArgs()
@@ -210,6 +227,8 @@ def main():
 
     with h5py.File(args.output, "a") as database:
         for ticID, ticIndex, row in tceList:
+            startTime = time.time()
+
             lightCurve = loadLightCurve(ticID, row)
 
             if lightCurve == None:
@@ -228,6 +247,13 @@ def main():
                     flatFlux, trend = detrendResult
 
                     logger.info(f"TIC {ticID}/{tceIndex} properly detrended")
+
+                    phases, flatFlux = phaseFold(times, flatFlux, row)
+                    logger.info(f"TIC {ticID}/{tceIndex} folded into {len(phases)} phases")
+
+            endTime = time.time()
+            elapsedTime = endTime - startTime # ms
+            logger.info(f"TIC {ticID}/{tceIndex} processed in {elapsedTime:.3f}s")
 
 if __name__ == "__main__":
     main()
