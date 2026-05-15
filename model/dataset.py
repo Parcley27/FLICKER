@@ -37,18 +37,18 @@ def makeSplits(h5Path) -> list[list, list, list]:
 
 class TransitDataset(data.Dataset):
     def __init__(self, h5Path, statsPath, indices = None):
-        self.statsPath = statsPath
+        self.h5Path = h5Path
+        self.file = None
 
-        self.file = h5py.File(h5Path, "r")
+        index = []
 
-        self.index = []
+        with h5py.File(h5Path, "r") as f:
+            for ticID in f.keys():
+                for observationIndex in f[ticID].keys():
+                    index.append((ticID, observationIndex))
 
-        for ticID in self.file.keys():
-            for observationIndex in self.file[ticID].keys():
-                self.index.append((ticID, observationIndex))
-        
-        self.index = np.array(self.index)
-        
+        self.index = np.array(index)
+
         if indices is not None:
             self.index = self.index[indices]
 
@@ -60,21 +60,28 @@ class TransitDataset(data.Dataset):
     def __len__(self):
         return len(self.index)
 
-    # called like dataset.tabelCounts() because its a property
+    def _openFile(self):
+        if self.file is None:
+            self.file = h5py.File(self.h5Path, "r")
+
+    # called like dataset.labelCounts because its a property
     @property
     def labelCounts(self):
         # count positives and negatives across the active split
-        positive = sum(
-            int(self.file[ticID][obsIdx]["exoplanetLabel"][()])
-            for ticID, obsIdx in self.index
+        with h5py.File(self.h5Path, "r") as f:
+            positive = sum(
+                int(f[ticID][obsIdx]["exoplanetLabel"][()])
+                for ticID, obsIdx in self.index
 
-        )
+            )
 
         negative = len(self.index) - positive
 
         return {"positive": positive, "negative": negative}
 
     def __getitem__(self, index):
+        self._openFile()
+
         ticID, observationIndex = self.index[index]
         sample = self.file[ticID][observationIndex]
 
