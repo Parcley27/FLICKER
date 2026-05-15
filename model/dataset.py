@@ -4,9 +4,39 @@ import json
 import numpy as np
 import torch
 import torch.utils.data as data
+from sklearn.model_selection import train_test_split
+
+# splits data into train / validation / test sets
+# 80 / 10 / 10 % respectively
+def makeSplits(h5Path) -> list[list, list, list]:
+    file = h5py.File(h5Path, "r")
+
+    allLabels = []
+
+    for ticID in file.keys():
+        for observationIndex in file[ticID].keys():
+            allLabels.append(int(file[ticID][observationIndex]["exoplanetLabel"][()]))
+
+    file.close()
+
+    allIndices = list(range(len(allLabels)))
+
+    # uses a random split, but based on a set seed so it's reproducible
+    trainValIndices, testIndices, trainValLabels, _ = train_test_split(
+        allIndices, allLabels, test_size = 0.1, stratify = allLabels, random_state = 27
+
+    )
+
+    trainIndices, valIndices = train_test_split(
+        trainValIndices, test_size = 1/9, stratify = trainValLabels, random_state = 27
+
+    )
+
+    return trainIndices, valIndices, testIndices
+
 
 class TransitDataset(data.Dataset):
-    def __init__(self, h5Path, statsPath):
+    def __init__(self, h5Path, statsPath, indices = None):
         self.statsPath = statsPath
 
         self.file = h5py.File(h5Path, "r")
@@ -18,9 +48,13 @@ class TransitDataset(data.Dataset):
                 self.index.append((ticID, observationIndex))
         
         self.index = np.array(self.index)
+        
+        if indices is not None:
+            self.index = self.index[indices]
 
         with open(statsPath) as f:
             stats = json.load(f)
+
         self.nanMask = np.isnan(stats["std"])
 
     def __len__(self):
@@ -60,3 +94,9 @@ if __name__ == "__main__":
         print(f"{key}, {sample[key].shape}, {sample[key].dtype}")
 
     print(dataset[0]["label"])
+
+    splits = makeSplits("data/processed/dataset.h5")
+    
+    print(len(splits[0]))
+    print(len(splits[1]))
+    print(len(splits[2]))
