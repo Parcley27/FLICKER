@@ -6,7 +6,7 @@ from dataset import TransitDataset, makeSplits
 dataPath = "data/processed/dataset.h5"
 scalarsPath = "data/processed/scalar_stats.json"
 
-epochs = 3
+epochs = 10
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -26,8 +26,15 @@ testLoader = torch.utils.data.DataLoader(testDataset, batch_size = 64, shuffle =
 
 model = TransitClassifier().to(device)
 
-# BCEWithLogitsLoss expects raw logits (no sigmoid) and handles the binary classification loss
-criteria = torch.nn.BCEWithLogitsLoss().to(device)
+# punish the model for predicting false when its actually true to try to deal with data imbalance
+counts = trainingDataset.labelCounts
+positiveHits = counts["positive"] 
+negativeHits = counts["negative"]
+
+# take sqrt of ratio to reduce agressiveness
+positiveMissWeight = torch.tensor((negativeHits / positiveHits) ** 0.5).to(device)
+
+criteria = torch.nn.BCEWithLogitsLoss(pos_weight = positiveMissWeight).to(device)
 
 # "Adam" optimizer adjusts the learning rate per-weight based on gradient history
 # weight_decay adds a penalty for large weights to discourage overfitting
@@ -50,8 +57,15 @@ for epoch in range(epochs):
 
         loss = criteria(predictions, batch["label"])
 
+        # skip batches with non-finite or extremely large losses
+        if not torch.isfinite(loss):
+            continue
+
         # backward pass computes how much each weight contributed to the loss
         loss.backward()
+
+        # maximum gradient
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         # update weights using the gradients just computed
         optimizer.step()

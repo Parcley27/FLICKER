@@ -227,7 +227,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     globalScaleFactor = np.min(globalView[:, 0])
 
     if globalScaleFactor < 0:
-        # min = -1
+        globalScaleFactor = min(globalScaleFactor, -1e-6)
         globalView[:, 0] /= -globalScaleFactor
 
     # local view around the transit
@@ -272,6 +272,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     localScaleFactor = np.min(localView[:, 0])
 
     if localScaleFactor < 0:
+        localScaleFactor = min(localScaleFactor, -1e-6)
         localView[:, 0] /= -localScaleFactor
     
     # secondary view to find the deepest out of transit dip, either secondary elcipse or binary system
@@ -339,6 +340,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     secondaryScaleFactor = np.min(secondaryView[:, 0])
 
     if secondaryScaleFactor < 0:
+        secondaryScaleFactor = min(secondaryScaleFactor, -1e-6)
         secondaryView[:, 0] /= -secondaryScaleFactor
 
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)

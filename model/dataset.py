@@ -60,13 +60,27 @@ class TransitDataset(data.Dataset):
     def __len__(self):
         return len(self.index)
 
+    # called like dataset.tabelCounts() because its a property
+    @property
+    def labelCounts(self):
+        # count positives and negatives across the active split
+        positive = sum(
+            int(self.file[ticID][obsIdx]["exoplanetLabel"][()])
+            for ticID, obsIdx in self.index
+
+        )
+
+        negative = len(self.index) - positive
+
+        return {"positive": positive, "negative": negative}
+
     def __getitem__(self, index):
         ticID, observationIndex = self.index[index]
         sample = self.file[ticID][observationIndex]
 
-        globalView = torch.tensor(sample["globalView"][()].T, dtype=torch.float32).nan_to_num(0.0)
-        localView = torch.tensor(sample["localView"][()].T, dtype=torch.float32).nan_to_num(0.0)
-        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype=torch.float32).nan_to_num(0.0)
+        globalView = torch.tensor(sample["globalView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
+        localView = torch.tensor(sample["localView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
+        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
 
         scalars = sample["scalars"][()].copy()
 
@@ -96,7 +110,7 @@ if __name__ == "__main__":
     print(dataset[0]["label"])
 
     splits = makeSplits("data/processed/dataset.h5")
-    
+
     print(len(splits[0]))
     print(len(splits[1]))
     print(len(splits[2]))
