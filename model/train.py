@@ -23,9 +23,17 @@ def main():
     testDataset = TransitDataset(dataPath, scalarsPath, testIndices)
 
     print("Building data loaders...")
-    # shuffling the dataset doesn't do anything for evaluation, but useful for training to avoid overfitting
+    # sampler oversamples the minority class so batches are roughly balanced
+    # replaces shuffle=True since the sampler handles randomisation
+    trainSampler = torch.utils.data.WeightedRandomSampler(
+        weights = trainingDataset.sampleWeights,
+        num_samples = len(trainingDataset),
+        replacement = True,
+        
+    )
+
     trainingLoader = torch.utils.data.DataLoader(
-        trainingDataset, batch_size = 64, shuffle = True,
+        trainingDataset, batch_size = 64, sampler = trainSampler,
         num_workers = 8, pin_memory = True, persistent_workers = True,
 
     )
