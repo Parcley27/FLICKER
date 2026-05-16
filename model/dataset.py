@@ -1,10 +1,16 @@
 
+import argparse
 import h5py
 import json
 import numpy as np
 import torch
 import torch.utils.data as data
+from pathlib import Path
 from sklearn.model_selection import train_test_split
+
+repoRoot = Path(__file__).resolve().parent.parent
+defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
 # splits data into train / validation / test sets
 # 80 / 10 / 10 % respectively
@@ -33,7 +39,6 @@ def makeSplits(h5Path) -> list[list, list, list]:
     )
 
     return trainIndices, valIndices, testIndices
-
 
 class TransitDataset(data.Dataset):
     def __init__(self, h5Path, statsPath, indices = None):
@@ -120,7 +125,16 @@ class TransitDataset(data.Dataset):
         }
     
 if __name__ == "__main__":
-    dataset = TransitDataset("data/processed/dataset.h5", "data/processed/scalar_stats.json")
+    parser = argparse.ArgumentParser(description = "Inspect the TransitDataset")
+
+    parser.add_argument("--data", type = Path, default = defaultDataPath,
+        help = "Path to dataset.h5 (default: data/processed/dataset.h5)")
+    parser.add_argument("--scalars", type = Path, default = defaultScalarsPath,
+        help = "Path to scalar_stats.json (default: data/processed/scalar_stats.json)")
+    
+    args = parser.parse_args()
+
+    dataset = TransitDataset(args.data, args.scalars)
     print(len(dataset))
 
     sample = dataset[0]
@@ -130,7 +144,7 @@ if __name__ == "__main__":
 
     print(dataset[0]["label"])
 
-    splits = makeSplits("data/processed/dataset.h5")
+    splits = makeSplits(args.data)
 
     print(len(splits[0]))
     print(len(splits[1]))
