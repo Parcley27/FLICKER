@@ -43,7 +43,7 @@ def main():
 
     trainingIndices, validationIndices, testIndices = splits[0], splits[1], splits[2]
 
-    trainingDataset = TransitDataset(args.data, args.scalars, trainingIndices)
+    trainingDataset = TransitDataset(args.data, args.scalars, trainingIndices, augment = True)
     validationDataset = TransitDataset(args.data, args.scalars, validationIndices)
     testDataset = TransitDataset(args.data, args.scalars, testIndices)
 

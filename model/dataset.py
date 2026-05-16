@@ -12,6 +12,8 @@ repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
 defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
+noiseIntensity = 0.01
+
 # splits data into train / validation / test sets
 # 80 / 10 / 10 % respectively
 def makeSplits(h5Path) -> list[list, list, list]:
@@ -41,8 +43,9 @@ def makeSplits(h5Path) -> list[list, list, list]:
     return trainIndices, valIndices, testIndices
 
 class TransitDataset(data.Dataset):
-    def __init__(self, h5Path, statsPath, indices = None):
+    def __init__(self, h5Path, statsPath, indices = None, augment = False):
         self.h5Path = h5Path
+        self.augment = augment
         self.file = None
 
         index = []
@@ -111,9 +114,24 @@ class TransitDataset(data.Dataset):
         scalars = sample["scalars"][()].copy()
 
         scalars[self.nanMask] = 0.0
-        scalars = torch.tensor(scalars, dtype=torch.float32)
+        scalars = torch.tensor(scalars, dtype = torch.float32)
 
         label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype=torch.float32)
+
+        if self.augment and label.item() == 1.0:
+            # add random noise to views
+            globalView += torch.randn_like(globalView) * noiseIntensity
+            localView += torch.randn_like(localView) * noiseIntensity
+            secondaryView += torch.randn_like(secondaryView) * noiseIntensity
+
+            flip = torch.rand(1) < 0.5
+
+            if flip:
+                globalView = torch.flip(globalView, dims = [-1])
+                localView = torch.flip(localView, dims = [-1])
+                secondaryView = torch.flip(secondaryView, dims = [-1])
+
+            scalars += torch.randn_like(scalars) * noiseIntensity
 
         return {
             "globalView": globalView,
