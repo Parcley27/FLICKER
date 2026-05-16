@@ -10,5 +10,6 @@ practice/data/
 /playgrounds/
 
 .DS_Store
+.vscode
 
 CLAUDE.md

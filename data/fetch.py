@@ -5,9 +5,18 @@ import csv
 import hashlib
 import json
 import logging
+import ssl
 import sys
 import time
 import urllib.request
+
+try:
+    import certifi
+    
+    ssl._create_default_https_context = lambda: ssl.create_default_context(cafile = certifi.where())
+
+except ImportError:
+    pass  # certifi not installed; rely on system certificates
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
