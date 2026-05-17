@@ -5,7 +5,8 @@
 
 /data/renders
 
-/model/__pycache__/
+/model/__pycache__/*
+/model/checkpoints/*
 
 practice/data/
 

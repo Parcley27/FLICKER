@@ -1,17 +1,20 @@
 import argparse
+import os
 import torch
+
+from pathlib import Path
+from sklearn.metrics import average_precision_score
 
 from model import TransitClassifier
 from dataset import TransitDataset, makeSplits
-
-from pathlib import Path
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
 defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
-lossThreshold = 100.0
+checkpointPath = repoRoot / "model" / "checkpoints"
 
+lossThreshold = 100.0
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train the TransitClassifier model")
@@ -92,6 +95,11 @@ def main():
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.0001)
 
+    print("Creating checkpoint directory...")
+    os.makedirs(checkpointPath, exist_ok = True)
+
+    bestAuPRc = 0.0
+
     print(f"Starting training for {args.epochs} epochs...")
 
     for epoch in range(args.epochs):
@@ -138,6 +146,8 @@ def main():
         model.eval()
 
         validationLoss = 0.0
+        logits = []
+        tabels = []
 
         # no_grad skips gradient tracking since we're not updating weights here
         with torch.no_grad():
@@ -147,11 +157,30 @@ def main():
                 predictions = model(batch)
                 loss = criteria(predictions, batch["label"])
 
+                logits.append(predictions.detach().cpu())
+                tabels.append(batch["label"].detach().cpu())
+
                 validationLoss += loss.item()
 
             validationLoss /= len(validationLoader)
+        
+        logits = torch.cat(logits)
+        tabels = torch.cat(tabels)
 
-        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f}"
+        # squish logits = 0 ... 1
+        predictions = torch.sigmoid(logits)
+
+        predictions = predictions.numpy()
+        tabels = tabels.numpy()
+
+        auPRc = average_precision_score(tabels, predictions)
+
+        if auPRc > bestAuPRc:
+            bestAuPRc = auPRc
+
+            torch.save(model.state_dict(), checkpointPath / f"best_{bestAuPRc:.4f}.pt")
+
+        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | Current auPRc {auPRc:.4f} | Best auPRc {bestAuPRc:.4f}"
 
         if batchesSkipped > 0:
             summary += f" | {batchesSkipped} batch(es) skipped: extraneous loss"
