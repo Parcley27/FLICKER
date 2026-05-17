@@ -95,11 +95,14 @@ def main():
 
         print(f"Test auPRc: {auPRc:.4f} | Test precision: {precision:.4f} | Test recall: {recall:.4f}")
 
-        # confidence thresholds
-        # start at 0.0 and go up to 1.0 in 0.1 increments
-        print("Confidence thresholds:")
-        for threshold in np.arange(0.1, 1.1, 0.1):
-            print(f"Threshold {threshold:.2f}: {(probabilities >= threshold).sum()} of {len(probabilities)} ({(probabilities >= threshold).sum() / len(probabilities):.2%})")
+        # precision/recall at each threshold to inform operating point choice
+        print("\nThreshold | Precision | Recall")
+        for threshold in np.arange(0.1, 1.0, 0.1):
+            binaryPredictions = (probabilities >= threshold).astype(int)
+            thresholdPrecision = precision_score(labels, binaryPredictions, zero_division = 0)
+            thresholdRecall = recall_score(labels, binaryPredictions)
+            
+            print(f"  {threshold:.1f}     |  {thresholdPrecision:.4f}   | {thresholdRecall:.4f}")
         
 if __name__ == "__main__":
     main()
