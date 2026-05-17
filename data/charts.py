@@ -133,7 +133,7 @@ def generateChart(ticID, predictedLabel = None):
 
     globalAx.fill_between(globalPhases, globalMedian - globalStd, globalMedian + globalStd,
                           alpha = 0.15, color = stdColour, linewidth = 0)
-    globalAx.plot(globalPhases, globalMedian, color = plotColour, linewidth = 1.0)
+    globalAx.plot(globalPhases, globalMedian, color = plotColour, linewidth = 3.0)
 
     # highlight transit region
     transitIndices = np.where(transitFlags)[0]
@@ -160,7 +160,7 @@ def generateChart(ticID, predictedLabel = None):
 
     localAx.fill_between(localPhases, localMedian - localStd, localMedian + localStd,
                          alpha = 0.15, color = stdColour, linewidth = 0)
-    localAx.plot(localPhases, localMedian, color = plotColour, linewidth = 1.2)
+    localAx.plot(localPhases, localMedian, color = plotColour, linewidth = 2.2)
 
     localAx.set_xlabel("Orbital Phase", fontsize = 9)
     localAx.set_ylabel("Normalised Flux", fontsize = 9)
@@ -175,7 +175,7 @@ def generateChart(ticID, predictedLabel = None):
 
     secondaryAx.fill_between(secondaryPhases, secondaryMedian - secondaryStd, secondaryMedian + secondaryStd,
                              alpha = 0.15, color = stdColour, linewidth = 0)
-    secondaryAx.plot(secondaryPhases, secondaryMedian, color = plotColour, linewidth = 1.2)
+    secondaryAx.plot(secondaryPhases, secondaryMedian, color = plotColour, linewidth = 2.2)
 
     secondaryAx.set_xlabel("Orbital Phase", fontsize = 9)
     secondaryAx.set_ylabel("Normalised Flux", fontsize = 9)
