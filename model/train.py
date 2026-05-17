@@ -147,7 +147,7 @@ def main():
 
         validationLoss = 0.0
         logits = []
-        tabels = []
+        labels = []
 
         # no_grad skips gradient tracking since we're not updating weights here
         with torch.no_grad():
@@ -158,22 +158,20 @@ def main():
                 loss = criteria(predictions, batch["label"])
 
                 logits.append(predictions.detach().cpu())
-                tabels.append(batch["label"].detach().cpu())
+                labels.append(batch["label"].detach().cpu())
 
                 validationLoss += loss.item()
 
             validationLoss /= len(validationLoader)
-        
+
         logits = torch.cat(logits)
-        tabels = torch.cat(tabels)
+        labels = torch.cat(labels)
 
-        # squish logits = 0 ... 1
-        predictions = torch.sigmoid(logits)
+        # squish logits to 0 ... 1 
+        probabilities = torch.sigmoid(logits).numpy()
+        labels = labels.numpy()
 
-        predictions = predictions.numpy()
-        tabels = tabels.numpy()
-
-        auPRc = average_precision_score(tabels, predictions)
+        auPRc = average_precision_score(labels, probabilities)
 
         if auPRc > bestAuPRc:
             bestAuPRc = auPRc
@@ -183,7 +181,8 @@ def main():
         summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | Current auPRc {auPRc:.4f} | Best auPRc {bestAuPRc:.4f}"
 
         if batchesSkipped > 0:
-            summary += f" | {batchesSkipped} batch(es) skipped: extraneous loss"
+            # extraneous loss
+            summary += f" | {batchesSkipped} batch(es) skipped"
 
         print(summary)
 
