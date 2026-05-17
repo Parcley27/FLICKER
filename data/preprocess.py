@@ -54,6 +54,7 @@ def parseArgs() -> argparse.Namespace:
 
     # 16 is probably good for i7 14700kf
     # 8 pcores plus 12 ecores - a few for other stuff
+    # 8 for m2 pro mbp
     parser.add_argument("--workers", type = int, default = 4,
         help = "Parallel worker threads (default 4)")
     parser.add_argument("--limit", type = int, default = None,
@@ -219,7 +220,9 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
 
     # median of flux values for out of transit bins
     # actual "flat" baseline
-    baseline = np.median(globalView[~transitFlags, 0])
+    # fallback to all bins if duration >= period flags the entire orbit as in-transit
+    outOfTransitGlobal = globalView[~transitFlags, 0]
+    baseline = np.median(outOfTransitGlobal) if len(outOfTransitGlobal) > 0 else np.median(globalView[:, 0])
 
     globalView[:, 0] -= baseline
 
@@ -265,7 +268,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     localBinCentres = 0.5 * (localBinEdges[:-1] + localBinEdges[1:])
     localTransitFlags = np.abs(localBinCentres) < 0.5 * duration / period
 
-    baseline = np.median(localView[~localTransitFlags, 0])
+    outOfTransitLocal = localView[~localTransitFlags, 0]
+    baseline = np.median(outOfTransitLocal) if len(outOfTransitLocal) > 0 else np.median(localView[:, 0])
 
     localView[:, 0] -= baseline
 
@@ -334,7 +338,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     secondaryBinCentres = 0.5 * (secondaryBinEdges[:-1] + secondaryBinEdges[1:])
     secondaryTransitFlags = np.abs(secondaryBinCentres - secondaryPhase) < 0.5 * duration / period
 
-    secondaryBaseline = np.median(secondaryView[~secondaryTransitFlags, 0])
+    outOfTransitSecondary = secondaryView[~secondaryTransitFlags, 0]
+    secondaryBaseline = np.median(outOfTransitSecondary) if len(outOfTransitSecondary) > 0 else np.median(secondaryView[:, 0])
     secondaryView[:, 0] -= secondaryBaseline
 
     secondaryScaleFactor = np.min(secondaryView[:, 0])
@@ -367,6 +372,10 @@ def processCurveEvent(args: tuple) -> dict:
 
             if detrendResult is not None:
                 flatFlux, trend = detrendResult
+
+                validMask = ~np.isnan(flatFlux)
+                times = times[validMask]
+                flatFlux = flatFlux[validMask]
 
                 phases, flatFlux = phaseFold(times, flatFlux, row)
 
