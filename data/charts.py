@@ -128,7 +128,7 @@ def generateChart(ticID, predictedLabel = None):
     globalAx = fig.add_subplot(outer[1])
 
     globalMedian = globalView[:, 0]
-    globalStd = globalView[:, 1]
+    globalStd = np.clip(globalView[:, 1], 0, 0.5)
     transitFlags = globalView[:, 2].astype(bool)
 
     globalAx.fill_between(globalPhases, globalMedian - globalStd, globalMedian + globalStd,
@@ -156,7 +156,7 @@ def generateChart(ticID, predictedLabel = None):
     localAx = fig.add_subplot(bottomInner[0])
 
     localMedian = localView[:, 0]
-    localStd = localView[:, 1]
+    localStd = np.clip(localView[:, 1], 0, 0.5)
 
     localAx.fill_between(localPhases, localMedian - localStd, localMedian + localStd,
                          alpha = 0.15, color = stdColour, linewidth = 0)
@@ -171,7 +171,7 @@ def generateChart(ticID, predictedLabel = None):
     secondaryAx = fig.add_subplot(bottomInner[1])
 
     secondaryMedian = secondaryView[:, 0]
-    secondaryStd = secondaryView[:, 1]
+    secondaryStd = np.clip(secondaryView[:, 1], 0, 0.5)
 
     secondaryAx.fill_between(secondaryPhases, secondaryMedian - secondaryStd, secondaryMedian + secondaryStd,
                              alpha = 0.15, color = stdColour, linewidth = 0)
