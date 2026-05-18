@@ -214,7 +214,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     globalBinCentres = 0.5 * (globalBinEdges[:-1] + globalBinEdges[1:])
 
     # np bool array
-    transitFlags = np.abs(globalBinCentres) < 0.5 * duration / period
+    transitFlags = np.abs(globalBinCentres) < 1.5 * duration / period
 
     globalView = np.column_stack([medians, stds, transitFlags])
 
@@ -232,6 +232,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     if globalScaleFactor < 0:
         globalScaleFactor = min(globalScaleFactor, -1e-6)
         globalView[:, 0] /= -globalScaleFactor
+        globalView[:, 1] /= -globalScaleFactor
 
     # local view around the transit
     # +- 2 transit durations around phase 0
@@ -278,7 +279,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     if localScaleFactor < 0:
         localScaleFactor = min(localScaleFactor, -1e-6)
         localView[:, 0] /= -localScaleFactor
-    
+        localView[:, 1] /= -localScaleFactor
+
     # secondary view to find the deepest out of transit dip, either secondary elcipse or binary system
     # search only outside +-2 transit durations so cant refind the primary
     outOfTransitMask = np.abs(phases) > 2 * duration / period
@@ -347,6 +349,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     if secondaryScaleFactor < 0:
         secondaryScaleFactor = min(secondaryScaleFactor, -1e-6)
         secondaryView[:, 0] /= -secondaryScaleFactor
+        secondaryView[:, 1] /= -secondaryScaleFactor
 
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
 
