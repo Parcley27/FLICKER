@@ -85,7 +85,7 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
 
         for fitsFile in fitsList:
             try:
-                lightCurve = lk.io.read(fitsFile, quality_bitmask = bitmaskQuality)
+                lightCurve = lk.io.read(fitsFile, quality_bitmask = bitmaskQuality) # type: ignore
 
                 time = lightCurve.time.value
                 flux = lightCurve.flux.value
@@ -262,8 +262,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
 
     if globalScaleFactor < 0:
         globalScaleFactor = min(globalScaleFactor, -1e-6)
-        globalView[:, 0] /= -globalScaleFactor
-        globalView[:, 1] /= -globalScaleFactor
+        globalView[:, 0] /= -globalScaleFactor # type: ignore
+        globalView[:, 1] /= -globalScaleFactor # type: ignore
 
     # local view around the transit
     # +- 2 transit durations around phase 0
@@ -406,7 +406,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         secondaryView[:, 0] /= -secondaryScaleFactor
         secondaryView[:, 1] /= -secondaryScaleFactor
 
-    return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
+    return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase) # type: ignore
 
 def processCurveEvent(args: tuple) -> dict:
     logging.getLogger(__name__).setLevel(logging.ERROR)
