@@ -54,7 +54,7 @@ def parseArgs() -> argparse.Namespace:
 
     # 16 is probably good for i7 14700kf
     # 8 pcores plus 12 ecores - a few for other stuff
-    # 8 for m2 pro mbp
+    # 6 for m2 pro mbp
     parser.add_argument("--workers", type = int, default = 4,
         help = "Parallel worker threads (default 4)")
     parser.add_argument("--limit", type = int, default = None,
@@ -176,6 +176,37 @@ def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray]:
     phases, flatFlux = phases[sortOrder], flatFlux[sortOrder]
 
     return (phases, flatFlux)
+
+def refineEpoch(phases, flatFlux, row) -> tuple[np.ndarray, np.ndarray, float]:
+    duration = float(row["Duration"])
+    period = float(row["Period"])
+
+    # same sliding-window approach used in the secondary search
+    # but applied to full phase-folded data to find the actual transit minimum
+    windowHalfWidth = 0.5 * duration / period
+
+    cumFlux = np.concatenate([[0.0], np.cumsum(flatFlux)])
+
+    leftIndex = np.searchsorted(phases, phases - windowHalfWidth, side = "left")
+    rightIndex = np.searchsorted(phases, phases + windowHalfWidth, side = "right")
+
+    counts = np.maximum(rightIndex - leftIndex, 1)
+    windowAverages = (cumFlux[rightIndex] - cumFlux[leftIndex]) / counts
+
+    observedPhase = phases[np.argmin(windowAverages)]
+
+    # shift so the transit lands at phase 0
+    phases = phases - observedPhase
+
+    # re-wrap to [-0.5, 0.5]
+    phases[phases > 0.5] -= 1.0
+    phases[phases < -0.5] += 1.0
+
+    # re-sort by phase
+    sortOrder = np.argsort(phases)
+    phases, flatFlux = phases[sortOrder], flatFlux[sortOrder]
+
+    return (phases, flatFlux, observedPhase)
 
 def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, float, np.ndarray, float, float]:
     duration = float(row["Duration"])
@@ -312,11 +343,35 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         secondaryPhase = secondaryPhases[minimumIndex]
 
     # bin a +- halfWidth window centred on the secondary phase, same resolution as local view
+    # wrap around the phase boundary since phase is circular (-0.5 == +0.5)
     secondaryBinEdges = np.linspace(secondaryPhase - halfWidth, secondaryPhase + halfWidth, secondaryBins + 1)
 
-    secondaryMask = (phases >= secondaryPhase - halfWidth) & (phases <= secondaryPhase + halfWidth)
-    secondaryWindowPhases = phases[secondaryMask]
-    secondaryWindowFlux = flatFlux[secondaryMask]
+    windowLow = secondaryPhase - halfWidth
+    windowHigh = secondaryPhase + halfWidth
+
+    if windowLow < -0.5:
+        # left edge wraps past -0.5, pull data from right edge
+        wrapMask = phases >= (windowLow + 1.0)
+        mainMask = phases <= windowHigh
+        secondaryWindowPhases = np.concatenate([phases[wrapMask] - 1.0, phases[mainMask]])
+        secondaryWindowFlux = np.concatenate([flatFlux[wrapMask], flatFlux[mainMask]])
+
+    elif windowHigh > 0.5:
+        # right edge wraps past +0.5, pull data from left edge
+        mainMask = phases >= windowLow
+        wrapMask = phases <= (windowHigh - 1.0)
+        secondaryWindowPhases = np.concatenate([phases[mainMask], phases[wrapMask] + 1.0])
+        secondaryWindowFlux = np.concatenate([flatFlux[mainMask], flatFlux[wrapMask]])
+
+    else:
+        secondaryMask = (phases >= windowLow) & (phases <= windowHigh)
+        secondaryWindowPhases = phases[secondaryMask]
+        secondaryWindowFlux = flatFlux[secondaryMask]
+
+    # sort wrapped data by phase for correct binning
+    sortOrder = np.argsort(secondaryWindowPhases)
+    secondaryWindowPhases = secondaryWindowPhases[sortOrder]
+    secondaryWindowFlux = secondaryWindowFlux[sortOrder]
 
     secondaryBinIndices = np.digitize(secondaryWindowPhases, secondaryBinEdges) - 1
     np.clip(secondaryBinIndices, 0, secondaryBins - 1, out = secondaryBinIndices)
@@ -382,6 +437,8 @@ def processCurveEvent(args: tuple) -> dict:
 
                 phases, flatFlux = phaseFold(times, flatFlux, row)
 
+                phases, flatFlux, phaseCorrection = refineEpoch(phases, flatFlux, row)
+
                 globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
 
                 period = float(row["Period"])
@@ -400,7 +457,7 @@ def processCurveEvent(args: tuple) -> dict:
                 scalars = np.array([
                     period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
                     nFolds, nPoints, globalScaleFactor, localScaleFactor,
-                    secondaryScaleFactor, secondaryPhase
+                    secondaryScaleFactor, secondaryPhase, phaseCorrection
 
                 ], dtype=np.float32)
 
@@ -565,7 +622,7 @@ def main():
         logger.warning("No training TCEs found so skipping scalar normalisation")
 
     else:
-        trainingScalars = np.array(trainingScalars)  # (n_train, 12)
+        trainingScalars = np.array(trainingScalars)  # (n_train, 13)
 
         scalarMean = np.mean(trainingScalars, axis=0)
         scalarStd = np.std(trainingScalars, axis=0)

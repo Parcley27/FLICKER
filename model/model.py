@@ -47,8 +47,8 @@ class TransitClassifier(nn.Module):
         self.localTower = ConvolutionTower(2, 61)
         self.secondaryTower = ConvolutionTower(2, 61)
         
-        # 12 scalars plus the three curve views
-        fullyConnectedInput = 12 + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension
+        # 13 scalars plus the three curve views
+        fullyConnectedInput = 13 + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension
 
         self.fullyConnected = nn.Sequential(
             # input layer
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     dummyGlobalView = torch.zeros(4, 3, 201)
     dummyLocalView = torch.zeros(4, 2, 61)
     dummySecondaryView = torch.zeros(4, 2, 61)
-    dummyScalars = torch.zeros(4, 12)
+    dummyScalars = torch.zeros(4, 13)
 
     dummyBatch = {
         "globalView": dummyGlobalView,
