@@ -1,4 +1,5 @@
 import argparse
+import csv
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import lightkurve as lk
@@ -87,14 +88,14 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
             try:
                 lightCurve = lk.io.read(fitsFile, quality_bitmask = bitmaskQuality) # type: ignore
 
-                time = lightCurve.time.value
+                lcTime = lightCurve.time.value
                 flux = lightCurve.flux.value
 
                 mask = ~np.isnan(flux)
 
-                time, flux = time[mask], flux[mask]
+                lcTime, flux = lcTime[mask], flux[mask]
 
-                sectors.append((time, flux))
+                sectors.append((lcTime, flux))
             
             except Exception as exception:
                 logger.warning(f"TIC {ticID}: skipping {fitsFile.name} ({type(exception).__name__})")
@@ -104,8 +105,8 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
 
             return None
 
-        times = np.concatenate([time for time, flux in sectors])
-        fluxes = np.concatenate([flux for time, flux in sectors])
+        times = np.concatenate([t for t, flux in sectors])
+        fluxes = np.concatenate([flux for t, flux in sectors])
 
         # sort both arrays by time
         sortOrder = np.argsort(times)
@@ -114,13 +115,11 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
         nFolds = (times[-1] - times[0]) / float(row["Period"])
 
         if nFolds < 3:
-            logger.warning(f"Not enough folds for TIC {ticID}, skipping...")
+            logger.warning(f"TIC {ticID}: only {nFolds:.1f} folds (< 3), proceeding anyway")
 
-            return None
-        
         return (times, fluxes)
 
-def detrend(times, fluxes, row) -> tuple[np.ndarray, np.ndarray] | None:
+def detrend(times, fluxes, row) -> np.ndarray | None:
     period = float(row["Period"])
     epoch  = float(row["Epoch"])
     duration = float(row["Duration"])
@@ -144,21 +143,20 @@ def detrend(times, fluxes, row) -> tuple[np.ndarray, np.ndarray] | None:
     
     try:
         # wotan settings based on Astronet V2 paper
-        flatFlux, trend = wotan.flatten(
-            times, fluxes, 
-            mask = transitMask, 
+        flatFlux = wotan.flatten(
+            times, fluxes,
+            mask = transitMask,
             method = "biweight",
             window_length = detrendWindow,
-            return_trend = True,
 
         )
-    
+
     except Exception as exception:
         logger.warning(f"Error during detrending: {exception}")
 
         return None
-    
-    return (flatFlux, trend)
+
+    return flatFlux
 
 def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray]:
     period = float(row["Period"])
@@ -223,7 +221,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     globalBinIndices = np.digitize(phases, globalBinEdges) - 1
     np.clip(globalBinIndices, 0, globalBins - 1, out = globalBinIndices)
 
-    medians, stds = [], []
+    medians, stds, hasData = [], [], []
 
     # compute median and std of all flatflux points where binindices == i
     for globalBin in range(globalBins):
@@ -234,11 +232,13 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
             # flat baseline
             median = 1.0
             std = 0.0
-        
+            hasData.append(0.0)
+
         else:
             median = np.median(binFlux)
             std = np.std(binFlux)
-        
+            hasData.append(1.0)
+
         medians.append(median)
         stds.append(std)
 
@@ -247,7 +247,7 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     # np bool array
     transitFlags = np.abs(globalBinCentres) < 1.5 * duration / period
 
-    globalView = np.column_stack([medians, stds, transitFlags])
+    globalView = np.column_stack([medians, stds, transitFlags, hasData])
 
     # median of flux values for out of transit bins
     # actual "flat" baseline
@@ -336,7 +336,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         leftIndex = np.searchsorted(secondaryPhases, secondaryPhases - searchHalfWidth, side = "left")
         rightIndex = np.searchsorted(secondaryPhases, secondaryPhases + searchHalfWidth, side = "right")
         
-        windowAverages = (cumFlux[rightIndex] - cumFlux[leftIndex]) / (rightIndex - leftIndex)
+        counts = np.maximum(rightIndex - leftIndex, 1)
+        windowAverages = (cumFlux[rightIndex] - cumFlux[leftIndex]) / counts
 
         minimumIndex = np.argmin(windowAverages)
 
@@ -419,69 +420,82 @@ def processCurveEvent(args: tuple) -> dict:
         "ticIndex": ticIndex,
         "success": False,
         "error": None,
+        "skipReason": None,
 
     }
 
     try:
         lightCurve = loadLightCurve(ticID, row)
 
-        if lightCurve is not None:
-            times, fluxes = lightCurve
+        if lightCurve is None:
+            result["skipReason"] = "no valid light curve data"
 
-            detrendResult = detrend(times, fluxes, row)
+            return result
 
-            if detrendResult is not None:
-                flatFlux, trend = detrendResult
+        times, fluxes = lightCurve
 
-                validMask = ~np.isnan(flatFlux)
-                times = times[validMask]
-                flatFlux = flatFlux[validMask]
+        flatFlux = detrend(times, fluxes, row)
 
-                phases, flatFlux = phaseFold(times, flatFlux, row)
+        if flatFlux is None:
+            result["skipReason"] = "detrending failed"
 
-                phases, flatFlux, phaseCorrection = refineEpoch(phases, flatFlux, row)
+            return result
 
-                globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
+        validMask = ~np.isnan(flatFlux)
+        times = times[validMask]
+        flatFlux = flatFlux[validMask]
 
-                period = float(row["Period"])
-                duration = float(row["Duration"])
-                depth = float(row["Depth"])
-                tBandMagnitude = float(row["Tmag"]) if pd.notna(row["Tmag"]) else 0.0
-                stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else 0.0
-                stellarRadius = float(row["SRad"]) if pd.notna(row["SRad"]) else 0.0
-                epoch = float(row["Epoch"])
-                split = str(row["Split"])
+        phases, flatFlux = phaseFold(times, flatFlux, row)
 
-                nPoints = len(times)
-                timeBaseline = times[-1] - times[0]
-                nFolds = np.log1p(min(np.floor(timeBaseline / period), 100))
+        phases, flatFlux, phaseCorrection = refineEpoch(phases, flatFlux, row)
 
-                scalars = np.array([
-                    period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
-                    nFolds, nPoints, globalScaleFactor, localScaleFactor,
-                    secondaryScaleFactor, secondaryPhase, phaseCorrection
+        globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
 
-                ], dtype=np.float32)
+        period = float(row["Period"])
+        duration = float(row["Duration"])
+        depth = float(row["Depth"])
+        tBandMagnitude = float(row["Tmag"]) if pd.notna(row["Tmag"]) else 0.0
+        epoch = float(row["Epoch"])
+        split = str(row["Split"])
 
-                consensusLabel = row["Consensus Label"]
-                labelMap = {"E": 0, "S": 1, "B": 2, "J": 3, "N": 4}
-                label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
-                exoplanetLabel = np.int8(1 if label == 0 else 0)
+        # fall back to SRadEst (paper's Bayesian estimate) before defaulting to NaN
+        stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else np.nan
+        stellarRadius = (
+            float(row["SRad"]) if pd.notna(row["SRad"])
+            else float(row["SRadEst"]) if pd.notna(row["SRadEst"])
+            else np.nan
+        )
 
-                result.update({
-                    "success": True,
-                    "globalView": globalView.astype(np.float32),
-                    "localView": localView.astype(np.float32),
-                    "secondaryView": secondaryView.astype(np.float32),
-                    "scalars": scalars,
-                    "label": label,
-                    "exoplanetLabel": exoplanetLabel,
-                    "period": period,
-                    "epoch": epoch,
-                    "split": split,
-                    "elapsed": time.time() - startTime,
+        nPoints = np.log1p(len(times))
+        timeBaseline = times[-1] - times[0]
+        nFolds = np.log1p(min(np.floor(timeBaseline / period), 100)) / np.log1p(100)
 
-                })
+        scalars = np.array([
+            period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
+            nFolds, nPoints, globalScaleFactor, localScaleFactor,
+            secondaryScaleFactor, secondaryPhase, phaseCorrection
+
+        ], dtype=np.float32)
+
+        consensusLabel = row["Consensus Label"]
+        labelMap = {"E": 0, "S": 1, "B": 2, "J": 3, "N": 4}
+        label = np.int8(labelMap[consensusLabel] if pd.notna(consensusLabel) and consensusLabel in labelMap else -1)
+        exoplanetLabel = np.int8(1 if label == 0 else 0)
+
+        result.update({
+            "success": True,
+            "globalView": globalView.astype(np.float32),
+            "localView": localView.astype(np.float32),
+            "secondaryView": secondaryView.astype(np.float32),
+            "scalars": scalars,
+            "label": label,
+            "exoplanetLabel": exoplanetLabel,
+            "period": period,
+            "epoch": epoch,
+            "split": split,
+            "elapsed": time.time() - startTime,
+
+        })
 
     except Exception as exception:
         result["error"] = str(exception)
@@ -493,7 +507,12 @@ def main():
 
     eventsData = pd.read_csv(tceTable, comment = "#")
 
-    # drop first row and reset index
+    # drop the units row (row 0) and reset index
+    assert eventsData.iloc[0]["Epoch"] == "BTJD", (
+        f"Expected units row with Epoch='BTJD', got '{eventsData.iloc[0]['Epoch']}'. "
+        "The CSV format may have changed — check whether the units row still exists."
+    )
+
     eventsData = eventsData.drop(0).reset_index(drop = True)
 
     # convert tic id row to int
@@ -628,9 +647,57 @@ def main():
     try:
         sys.stdout.write("\n\n")
         sys.stdout.flush()
-        
+
     except ValueError:
         pass
+
+    # log failure reason summary
+    skipReasons = {}
+    errorMessages = {}
+
+    for r in results:
+        if r["success"]:
+            continue
+
+        if r["skipReason"]:
+            skipReasons[r["skipReason"]] = skipReasons.get(r["skipReason"], 0) + 1
+
+        if r["error"]:
+            errorMessages[r["error"]] = errorMessages.get(r["error"], 0) + 1
+
+    if skipReasons:
+        logger.info("Skip reasons:")
+
+        for reason, count in sorted(skipReasons.items(), key = lambda x: -x[1]):
+            logger.info(f"  {reason}: {count}")
+
+    if errorMessages:
+        logger.info("Errors:")
+
+        for error, count in sorted(errorMessages.items(), key = lambda x: -x[1]):
+            logger.info(f"  {error}: {count}")
+
+    # write process log
+    processLogFields = ("ticID", "ticIndex", "status", "reason", "elapsed")
+
+    with open(processLog, "w", newline = "") as logFile:
+        writer = csv.DictWriter(logFile, fieldnames = processLogFields)
+        writer.writeheader()
+
+        for r in results:
+            status = "ok" if r["success"] else "error" if r["error"] else "skipped"
+            reason = r["error"] or r["skipReason"] or ""
+            elapsed = f"{r.get('elapsed', 0):.2f}" if r["success"] else ""
+
+            writer.writerow({
+                "ticID": r["ticID"],
+                "ticIndex": r["ticIndex"],
+                "status": status,
+                "reason": reason,
+                "elapsed": elapsed,
+            })
+
+    logger.info(f"Process log written to {processLog}")
 
     # normalize scalars
     trainingScalars = []
@@ -647,24 +714,38 @@ def main():
     else:
         trainingScalars = np.array(trainingScalars)  # (n_train, 13)
 
-        scalarMean = np.mean(trainingScalars, axis=0)
-        scalarStd = np.std(trainingScalars, axis=0)
+        # compute mean/std ignoring NaN (from missing stellar params)
+        scalarMean = np.nanmean(trainingScalars, axis = 0)
+        scalarStd = np.nanstd(trainingScalars, axis = 0)
         scalarStd[scalarStd == 0] = 1.0  # guard against constant features
+
+        nanCounts = np.isnan(trainingScalars).sum(axis = 0)
+        nanFeatures = np.where(nanCounts > 0)[0]
+
+        if len(nanFeatures) > 0:
+            logger.info(f"NaN counts per scalar feature: {dict(zip(nanFeatures.tolist(), nanCounts[nanFeatures].tolist()))}")
 
         scalarStats = {"mean": scalarMean.tolist(), "std": scalarStd.tolist()}
         statsPath = processedDir / "scalar_stats.json"
-        statsPath.write_text(json.dumps(scalarStats, indent=2))
+        statsPath.write_text(json.dumps(scalarStats, indent = 2))
         logger.info(f"Scalar stats written to {statsPath}")
 
+        # replace NaN with training mean then z-score — missing values land at z = 0
         with h5py.File(args.output, "r+") as database:
             for starGroup in database.values():
                 for tceGroup in starGroup.values():
                     raw = tceGroup["scalars"][:]
+
+                    nanMask = np.isnan(raw)
+
+                    if np.any(nanMask):
+                        raw[nanMask] = scalarMean[nanMask]
+
                     normalised = ((raw - scalarMean) / scalarStd).astype(np.float32)
 
                     del tceGroup["scalars"]
 
-                    tceGroup.create_dataset("scalars", data=normalised)
+                    tceGroup.create_dataset("scalars", data = normalised)
 
         logger.info("Scalars normalised and written back to HDF5")
 
