@@ -95,7 +95,7 @@ class DownloadProgress:
         downloadSpeed = bytesDownloaded / timeElapsed / (1024 ** 2)
 
         filledBlocks = int(percentComplete / 4)
-        progressBar = "#" * filledBlocks + 'O' * (25 - filledBlocks)
+        progressBar = "#" * filledBlocks + '-' * (25 - filledBlocks)
 
         sys.stdout.write(
             f"\r[{progressBar}] {percentComplete:5.1f}%  {downloadSpeed:.1f} MB/s  {self.label}"
@@ -127,12 +127,13 @@ def downloadZenodoCsv(recordFiles: dict) -> bool:
 
     if csvDestination.exists():
         if expectedChecksum and computeMD5Checksum(csvDestination) != expectedChecksum:
-            logger.warning("Existing label table checksum mismatch - using existing file anyway")
-            
+            logger.warning("Existing label table checksum mismatch - deleting and re-downloading")
+            csvDestination.unlink()
+
         else:
             logger.info("Label table already present and verified - skipping download")
 
-        return True
+            return True
     
     logger.info(f"Downloading TCE label table ({fileName})")
     rawDir.mkdir(parents = True, exist_ok = True)
@@ -225,14 +226,17 @@ def downloadStar(ticID: str) -> dict:
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%S")
 
     try:
-        searchResults = lk.search_lightcurve(
+        searchResults = lk.search_lightcurve( # type: ignore
             f"TIC {ticID}", mission = lightcurveMission, author = lightcurveAuthor,
 
         )
 
         # Fall back to any TESS source if QLP has no coverage for this star
+        usedFallback = False
+
         if len(searchResults) == 0:
-            searchResults = lk.search_lightcurve(f"TIC {ticID}", mission = lightcurveMission)
+            searchResults = lk.search_lightcurve(f"TIC {ticID}", mission = lightcurveMission) # type: ignore
+            usedFallback = len(searchResults) > 0
 
         if len(searchResults) == 0:
             return {
@@ -261,30 +265,29 @@ def downloadStar(ticID: str) -> dict:
                 continue
 
             try:
-                # Lightkurve writes the FITS to starDir with its own naming scheme
-                # Find the newest .fits file written and rename it
+                # Snapshot existing FITS files before download so we can identify the new file by set difference afterward
+                existingFits = set(starDir.rglob("*.fits"))
+
                 result.download(download_dir = str(starDir), cache = False)
 
-                fitsCandidates = sorted(
-                    starDir.rglob("*.fits"), key = lambda p: p.stat().st_mtime, reverse = True
-                )
+                newFits = set(starDir.rglob("*.fits")) - existingFits
 
-                for candidate in fitsCandidates:
-                    if candidate.name != fileName:
-                        try:
-                            candidate.rename(filePath)
+                if newFits:
+                    newFile = newFits.pop()
 
-                        except Exception:
-                            pass
+                    try:
+                        newFile.rename(filePath)
 
-                        break
+                    except Exception as renameError:
+                        logger.debug(f"TIC {ticID} sector {sector}: rename failed: {renameError}")
 
                 if filePath.exists():
                     savedFiles.append(fileName)
                     savedSectors.append(str(sector))
 
-            except Exception:
-                # Per-sector failure - continue with remaining sectors
+            except Exception as sectorError:
+                logger.debug(f"TIC {ticID} sector {sector}: download failed: {sectorError}")
+
                 continue
 
         if not savedFiles:
@@ -295,9 +298,11 @@ def downloadStar(ticID: str) -> dict:
 
             }
 
+        fallbackNote = "QLP unavailable - used fallback TESS source" if usedFallback else ""
+
         return {
             "ticID": ticID, "status": "ok", "fileCount": len(savedFiles),
-            "sectors": ";".join(savedSectors), "timestamp": timestamp, "note": "",
+            "sectors": ";".join(savedSectors), "timestamp": timestamp, "note": fallbackNote,
 
         }
 
@@ -364,7 +369,7 @@ def main():
 
     if args.resume or args.retry_failed:
         fetchLog = loadFetchLog()
-        skipStatuses = {"ok"} if not args.retry_failed else set()
+        skipStatuses = {"ok"} if args.retry_failed else {"ok", "failed", "error", "no_data"}
         totalBefore = len(ticIDs)
 
         ticIDs = [t for t in ticIDs if fetchLog.get(t, {}).get("status") not in skipStatuses]
