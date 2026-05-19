@@ -447,7 +447,7 @@ def processCurveEvent(args: tuple) -> dict:
 
         phases, flatFlux = phaseFold(times, flatFlux, row)
 
-        phases, flatFlux, phaseCorrection = refineEpoch(phases, flatFlux, row)
+        phases, flatFlux, _ = refineEpoch(phases, flatFlux, row)
 
         globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
 
@@ -473,7 +473,7 @@ def processCurveEvent(args: tuple) -> dict:
         scalars = np.array([
             period, duration, depth, tBandMagnitude, stellarMass, stellarRadius,
             nFolds, nPoints, globalScaleFactor, localScaleFactor,
-            secondaryScaleFactor, secondaryPhase, phaseCorrection
+            secondaryScaleFactor, secondaryPhase
 
         ], dtype=np.float32)
 
@@ -510,7 +510,7 @@ def main():
     # drop the units row (row 0) and reset index
     assert eventsData.iloc[0]["Epoch"] == "BTJD", (
         f"Expected units row with Epoch='BTJD', got '{eventsData.iloc[0]['Epoch']}'. "
-        "The CSV format may have changed — check whether the units row still exists."
+        "The CSV format may have changed - check whether the units row still exists."
     )
 
     eventsData = eventsData.drop(0).reset_index(drop = True)
@@ -712,7 +712,7 @@ def main():
         logger.warning("No training TCEs found so skipping scalar normalisation")
 
     else:
-        trainingScalars = np.array(trainingScalars)  # (n_train, 13)
+        trainingScalars = np.array(trainingScalars)  # (n_train, 12)
 
         # compute mean/std ignoring NaN (from missing stellar params)
         scalarMean = np.nanmean(trainingScalars, axis = 0)
@@ -730,7 +730,7 @@ def main():
         statsPath.write_text(json.dumps(scalarStats, indent = 2))
         logger.info(f"Scalar stats written to {statsPath}")
 
-        # replace NaN with training mean then z-score — missing values land at z = 0
+        # replace NaN with training mean then z-score - missing values land at z = 0
         with h5py.File(args.output, "r+") as database:
             for starGroup in database.values():
                 for tceGroup in starGroup.values():
