@@ -85,7 +85,7 @@ def loadLightCurve(ticID, row) -> tuple[np.ndarray, np.ndarray] | None:
 
         for fitsFile in fitsList:
             try:
-                lightCurve =lk.io.read(fitsFile, quality_bitmask = bitmaskQuality)
+                lightCurve = lk.io.read(fitsFile, quality_bitmask = bitmaskQuality)
 
                 time = lightCurve.time.value
                 flux = lightCurve.flux.value
@@ -409,6 +409,8 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase)
 
 def processCurveEvent(args: tuple) -> dict:
+    logging.getLogger(__name__).setLevel(logging.ERROR)
+
     ticID, ticIndex, row = args
     startTime = time.time()
 
@@ -568,6 +570,8 @@ def main():
     
     numberProcessed = 0
     numberSkipped = 0
+    completed = 0
+    totalTCEs = len(tceList)
 
     labelCounts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, -1: 0}
 
@@ -586,28 +590,47 @@ def main():
                 ticID = result["ticID"]
                 ticIndex = result["ticIndex"]
 
-                if not result["success"]:
-                    logger.warning(f"Skipping TIC {ticID} TCE {ticIndex}: {result['error']}")
+                if result["success"]:
+                    group = database.create_group(f"{ticID}/{ticIndex}")
+
+                    group.create_dataset("globalView", data = result["globalView"])
+                    group.create_dataset("localView", data = result["localView"])
+                    group.create_dataset("secondaryView", data = result["secondaryView"])
+                    group.create_dataset("scalars", data = result["scalars"])
+                    group.create_dataset("label", data = result["label"])
+                    group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
+
+                    group.attrs["ticID"] = ticID
+                    group.attrs["period"] = result["period"]
+                    group.attrs["epoch"] = result["epoch"]
+                    group.attrs["split"] = result["split"]
+
+                    numberProcessed += 1
+                    labelCounts[int(result["label"])] += 1
+
+                else:
                     numberSkipped += 1
-                    continue
 
-                group = database.create_group(f"{ticID}/{ticIndex}")
+                completed += 1
 
-                group.create_dataset("globalView", data = result["globalView"])
-                group.create_dataset("localView", data = result["localView"])
-                group.create_dataset("secondaryView", data = result["secondaryView"])
-                group.create_dataset("scalars", data = result["scalars"])
-                group.create_dataset("label", data = result["label"])
-                group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
+                try:
+                    sys.stdout.write(
+                        f"\r  {completed:>6,}/{totalTCEs:,}  ({100 * completed / totalTCEs:5.1f}%) | " 
+                        f"# Ok: {numberProcessed:,}  | # Skipped: {numberSkipped} "
 
-                group.attrs["ticID"] = ticID
-                group.attrs["period"] = result["period"]
-                group.attrs["epoch"] = result["epoch"]
-                group.attrs["split"] = result["split"]
+                    )
 
-                logger.info(f"TIC {ticID}/{ticIndex} written ({result['elapsed']:.2f}s)")
-                numberProcessed += 1
-                labelCounts[int(result["label"])] += 1
+                    sys.stdout.flush()
+
+                except ValueError:
+                    pass
+
+    try:
+        sys.stdout.write("\n\n")
+        sys.stdout.flush()
+        
+    except ValueError:
+        pass
 
     # normalize scalars
     trainingScalars = []
