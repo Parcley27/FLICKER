@@ -6,7 +6,7 @@ import torch
 from pathlib import Path
 from sklearn.metrics import recall_score, precision_score, average_precision_score
 
-from model import TransitClassifier
+from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
 
 repoRoot = Path(__file__).resolve().parent.parent
