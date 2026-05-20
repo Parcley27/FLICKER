@@ -108,9 +108,9 @@ class TransitDataset(data.Dataset):
         ticID, observationIndex = self.index[index]
         sample = self.file[ticID][observationIndex]
 
-        globalView = torch.tensor(sample["globalView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
-        localView = torch.tensor(sample["localView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
-        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
+        globalView = torch.tensor(sample["globalView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
+        localView = torch.tensor(sample["localView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
+        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
 
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)

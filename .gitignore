@@ -1,12 +1,11 @@
+__pycache__/
+
 /data/raw/lightcurves/*
 /data/raw/fetch_log.csv
 
 /data/processed/*
 
 /data/renders
-
-/model/__pycache__/*
-/model/checkpoints/*
 
 practice/data/
 
@@ -15,5 +14,4 @@ practice/data/
 .DS_Store
 .vscode
 
-CLAUDE.md
 .claude/

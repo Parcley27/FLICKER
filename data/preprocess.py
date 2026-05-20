@@ -407,6 +407,13 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         secondaryView[:, 0] /= -secondaryScaleFactor
         secondaryView[:, 1] /= -secondaryScaleFactor
 
+    # clamp all view values to a reasonable range
+    # outlier per-bin std values can reach order of 10^29 after dividing by shallow transit depths, 
+    # overwhelming the conv towers
+    np.clip(globalView, -5.0, 5.0, out = globalView)
+    np.clip(localView, -5.0, 5.0, out = localView)
+    np.clip(secondaryView, -5.0, 5.0, out = secondaryView)
+
     return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase) # type: ignore
 
 def processCurveEvent(args: tuple) -> dict:
