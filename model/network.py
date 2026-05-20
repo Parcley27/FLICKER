@@ -62,12 +62,17 @@ class TransitClassifier(nn.Module):
             # input layer
             nn.Linear(fullyConnectedInput, 256),
             nn.ReLU(),
-            nn.Dropout(self.dropout),
+            nn.Dropout(dropout),
 
             # hidden layer 1
-            nn.Linear(256, 64),
+            nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Dropout(self.dropout),
+            nn.Dropout(dropout),
+
+            # hidden layer 2
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
 
             # output layer
             nn.Linear(64, 1),
