@@ -86,18 +86,20 @@ class TransitDataset(data.Dataset):
         return {"positive": positive, "negative": negative}
 
     @property
-    def sampleWeights(self):
-        # each sample gets weight 1/classCount so the sampler draws both classes equally
-        counts = self.labelCounts
-        weightByLabel = {1: 1.0 / counts["positive"], 0: 1.0 / counts["negative"]}
+    def sampleWeights(self) -> list[float]:
+        # single pass: collect per-sample labels, then compute weights from counts
+        labels = []
 
-        weights = []
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                label = int(f[ticID][obsIdx]["exoplanetLabel"][()])
-                weights.append(weightByLabel[label])
+                labels.append(int(f[ticID][obsIdx]["label"][()])) # type: ignore
 
-        return weights
+        counts: dict[int, int] = {}
+
+        for label in labels:
+            counts[label] = counts.get(label, 0) + 1
+
+        return [1.0 / counts[label] for label in labels]
 
     def __getitem__(self, index):
         self._openFile()
