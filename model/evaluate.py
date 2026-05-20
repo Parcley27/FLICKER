@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from pathlib import Path
-from sklearn.metrics import recall_score, precision_score, average_precision_score, confusion_matrix
+from sklearn.metrics import recall_score, precision_score, average_precision_score
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
@@ -16,7 +16,6 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 checkpointPath = repoRoot / "model" / "checkpoints"
 resultsPath = repoRoot / "model" / "results"
 
-labelNames = ["E", "S", "B", "J", "N"]
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Evaluate the TransitClassifier model on the test set")
@@ -92,13 +91,9 @@ def main():
     probabilities = torch.sigmoid(logits).numpy()
     labels = labels.numpy()
 
-    # primary metric: AUC-PR on the exoplanet (E) column
-    eProbs = probabilities[:, 0]
-    eLabels = labels[:, 0]
-
-    auPRc = average_precision_score(eLabels, eProbs)
-    precision = precision_score(eLabels, (eProbs >= 0.5).astype(int), zero_division = 0)
-    recall = recall_score(eLabels, (eProbs >= 0.5).astype(int), zero_division = 0)
+    auPRc = average_precision_score(labels, probabilities)
+    precision = precision_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
+    recall = recall_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
 
     outputLines = []
 
@@ -108,39 +103,17 @@ def main():
 
     printAndLog(f"Checkpoint: {checkpoint}")
     printAndLog(f"Test samples: {len(labels)}")
-    printAndLog(f"\nPrimary metric (E class):")
-    printAndLog(f"  AUC-PR: {auPRc:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}")
+    printAndLog(f"\nAUC-PR: {auPRc:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f}")
 
-    # per-class AUC-PR
-    printAndLog(f"\nPer-class AUC-PR:")
-
-    for i, name in enumerate(labelNames):
-        classAuPR = average_precision_score(labels[:, i], probabilities[:, i])
-        printAndLog(f"  {name}: {classAuPR:.4f}")
-
-    # threshold sweep on E column
-    printAndLog(f"\nThreshold sweep (E class):")
-    printAndLog(f"  Threshold | Precision | Recall")
+    # threshold sweep
+    printAndLog(f"\nThreshold | Precision | Recall")
 
     for threshold in np.arange(0.1, 1.0, 0.1):
-        binaryPredictions = (eProbs >= threshold).astype(int)
-        thresholdPrecision = precision_score(eLabels, binaryPredictions, zero_division = 0)
-        thresholdRecall = recall_score(eLabels, binaryPredictions, zero_division = 0)
+        binaryPredictions = (probabilities >= threshold).astype(int)
+        thresholdPrecision = precision_score(labels, binaryPredictions, zero_division = 0)
+        thresholdRecall = recall_score(labels, binaryPredictions, zero_division = 0)
 
-        printAndLog(f"  {threshold:.1f}       |  {thresholdPrecision:.4f}   | {thresholdRecall:.4f}")
-
-    # confusion matrix using argmax predictions
-    predictedClasses = np.argmax(probabilities, axis = 1)
-    trueClasses = np.argmax(labels, axis = 1)
-
-    confusionMatrix = confusion_matrix(trueClasses, predictedClasses, labels = list(range(len(labelNames))))
-
-    printAndLog(f"\nConfusion matrix (rows = true, columns = predicted):")
-    printAndLog(f"{'':>8s} " + " ".join(f"{name:>6s}" for name in labelNames))
-
-    for i, name in enumerate(labelNames):
-        row = " ".join(f"{confusionMatrix[i, j]:6d}" for j in range(len(labelNames)))
-        printAndLog(f"{name:>8s} {row}")
+        printAndLog(f"  {threshold:.1f}     |  {thresholdPrecision:.4f}   | {thresholdRecall:.4f}")
 
     # save results
     resultsPath.mkdir(parents = True, exist_ok = True)

@@ -14,8 +14,6 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
 noiseIntensity = 0.01
 
-numLabels = 5
-
 # uses the pre-assigned split attribute from the HDF5 file 
 def makeSplits(h5Path) -> tuple[list, list, list]:
     trainIndices, valIndices, testIndices = [], [], []
@@ -75,32 +73,27 @@ class TransitDataset(data.Dataset):
             self.file = h5py.File(self.h5Path, "r")
 
     @property
-    def labelCounts(self) -> dict[int, int]:
-        counts: dict[int, int] = {}
+    def labelCounts(self) -> dict[str, int]:
+        positive = 0
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                label = int(f[ticID][obsIdx]["label"][()]) # type: ignore
+                positive += int(f[ticID][obsIdx]["exoplanetLabel"][()]) # type: ignore
 
-                counts[label] = counts.get(label, 0) + 1
-
-        return counts
+        return {"positive": positive, "negative": len(self.index) - positive}
 
     @property
     def sampleWeights(self) -> list[float]:
-        # single pass: collect per-sample labels, then compute weights from counts
         labels = []
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                labels.append(int(f[ticID][obsIdx]["label"][()])) # type: ignore
+                labels.append(int(f[ticID][obsIdx]["exoplanetLabel"][()])) # type: ignore
 
-        counts: dict[int, int] = {}
+        counts = self.labelCounts
+        weightByLabel = {1: 1.0 / counts["positive"], 0: 1.0 / counts["negative"]}
 
-        for label in labels:
-            counts[label] = counts.get(label, 0) + 1
-
-        return [1.0 / counts[label] for label in labels]
+        return [weightByLabel[label] for label in labels]
 
     def __getitem__(self, index):
         self._openFile()
@@ -115,13 +108,9 @@ class TransitDataset(data.Dataset):
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
 
-        rawLabel = int(sample["label"][()]) # type: ignore
-        label = torch.zeros(numLabels, dtype=torch.float32)
+        label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype = torch.float32) # type: ignore
 
-        if 0 <= rawLabel < numLabels:
-            label[rawLabel] = 1.0
-
-        if self.augment and rawLabel == 0:
+        if self.augment and label.item() == 1.0:
             # add random noise to views only
             globalView += torch.randn_like(globalView) * noiseIntensity
             localView += torch.randn_like(localView) * noiseIntensity
@@ -166,17 +155,11 @@ if __name__ == "__main__":
     for key in sample:
         print(f"  {key}: Shape = {sample[key].shape}, dtype = {sample[key].dtype}")
 
-    print(f"\nFirst sample label (one-hot): {sample['label']}")
+    print(f"\nFirst sample label: {sample['label']}")
 
     splits = makeSplits(args.data)
 
     print(f"\nSplits: Train = {len(splits[0])}, Evaluate = {len(splits[1])}, Test = {len(splits[2])}")
 
-    labelCounts = dataset.labelCounts
-    labelNames = {0: "Exoplanet", 1: "Single Transit", 2: "Binary", 3: "Junk", 4: "Uncertain"}
-
-    print("\nLabel distribution:")
-
-    for labelIndex, count in sorted(labelCounts.items()):
-        name = labelNames.get(labelIndex, f"Unknown ({labelIndex})")
-        print(f"  {name}: {count}")
+    counts = dataset.labelCounts
+    print(f"\nLabel distribution: Positive (E) = {counts['positive']}, Negative = {counts['negative']}")

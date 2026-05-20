@@ -42,16 +42,15 @@ class ConvolutionTower(nn.Module):
         return self.layers(x)
 
 class TransitClassifier(nn.Module):
-    def __init__(self, scalarDimension = 12, numLabels = 5, dropout = 0.5):
+    def __init__(self, scalarDimension = 12, numLabels = 1, dropout = 0.3):
         super().__init__()
 
         # global view has 4 channels: median, std, transitFlag, hasData
         self.globalTower = ConvolutionTower(4, globalBins, numBlocks = 3)
 
         # local and secondary views have 2 channels: median, std
-        # 2 conv blocks for 61-bin inputs to preserve more spatial resolution
-        self.localTower = ConvolutionTower(2, localBins, numBlocks = 2)
-        self.secondaryTower = ConvolutionTower(2, secondaryBins, numBlocks = 2)
+        self.localTower = ConvolutionTower(2, localBins, numBlocks = 3)
+        self.secondaryTower = ConvolutionTower(2, secondaryBins, numBlocks = 3)
 
         fullyConnectedInput = scalarDimension + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension
 
@@ -71,7 +70,7 @@ class TransitClassifier(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            # output layer - one logit per label (E, S, B, J, N)
+            # output layer - single logit for binary E classification
             nn.Linear(64, numLabels),
 
         )
@@ -88,7 +87,10 @@ class TransitClassifier(nn.Module):
 
         vector = torch.cat([globalFeatures, localFeatures, secondaryFeatures, scalars], dim = 1)
 
-        return self.fullyConnected(vector)
+        output = self.fullyConnected(vector)
+
+        # squeeze from (batch, 1) to (batch,) for BCEWithLogitsLoss
+        return output.squeeze(1)
 
 if __name__ == "__main__":
     transitClassifier = TransitClassifier()
@@ -109,5 +111,5 @@ if __name__ == "__main__":
     output = transitClassifier(dummyBatch)
     print(f"Output shape: {output.shape}")
 
-    assert output.shape == torch.Size([4, 5]), f"Expected (4, 5), got {output.shape}"
+    assert output.shape == torch.Size([4]), f"Expected (4,), got {output.shape}"
     print("All checks passed")

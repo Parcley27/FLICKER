@@ -159,9 +159,8 @@ def main():
         logits = torch.cat(logits)
         labels = torch.cat(labels)
 
-        # primary metric: AUC-PR on the exoplanet (E) column only
-        probabilities = torch.sigmoid(logits[:, 0]).numpy()
-        trueLabels = labels[:, 0].numpy()
+        probabilities = torch.sigmoid(logits).numpy()
+        trueLabels = labels.numpy()
 
         auPRc = average_precision_score(trueLabels, probabilities)
 
@@ -174,7 +173,7 @@ def main():
             torch.save(model.state_dict(), checkpointPath / "best.pt")
 
         currentLR = optimizer.param_groups[0]["lr"]
-        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR(E) {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {currentLR:.1e}"
+        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {currentLR:.1e}"
 
         if batchesSkipped > 0:
             summary += f" | {batchesSkipped} batch(es) skipped"
