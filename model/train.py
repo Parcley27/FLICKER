@@ -81,15 +81,8 @@ def main():
     print("Building model...")
     model = TransitClassifier().to(device)
 
-    # punish the model for predicting false when its actually true to try to deal with data imbalance
-    counts = trainingDataset.labelCounts
-    positiveHits = counts["positive"]
-    negativeHits = counts["negative"]
-
-    # take sqrt of ratio to reduce agressiveness
-    positiveMissWeight = torch.tensor((negativeHits / positiveHits) ** 0.5).to(device)
-
-    criteria = torch.nn.BCEWithLogitsLoss(pos_weight = positiveMissWeight).to(device)
+    # no pos_weight since the WeightedRandomSampler already handles class imbalance
+    criteria = torch.nn.BCEWithLogitsLoss().to(device)
 
     # "Adam" optimizer adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
