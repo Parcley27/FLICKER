@@ -1,3 +1,4 @@
+# pyright: reportAttributeAccessIssue=false, reportIndexIssue=false, reportOptionalSubscript=false
 
 import argparse
 import h5py
@@ -6,7 +7,6 @@ import numpy as np
 import torch
 import torch.utils.data as data
 from pathlib import Path
-from sklearn.model_selection import train_test_split
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
@@ -66,24 +66,25 @@ class TransitDataset(data.Dataset):
     def __len__(self):
         return len(self.index)
 
+    def __del__(self):
+        if self.file is not None:
+            self.file.close()
+
     def _openFile(self):
         if self.file is None:
             self.file = h5py.File(self.h5Path, "r")
 
-    # called like dataset.labelCounts because its a property
     @property
-    def labelCounts(self):
-        # count positives and negatives across the active split
+    def labelCounts(self) -> dict[int, int]:
+        counts: dict[int, int] = {}
+
         with h5py.File(self.h5Path, "r") as f:
-            positive = sum(
-                int(f[ticID][obsIdx]["exoplanetLabel"][()])
-                for ticID, obsIdx in self.index
+            for ticID, obsIdx in self.index:
+                label = int(f[ticID][obsIdx]["label"][()]) # type: ignore
 
-            )
+                counts[label] = counts.get(label, 0) + 1
 
-        negative = len(self.index) - positive
-
-        return {"positive": positive, "negative": negative}
+        return counts
 
     @property
     def sampleWeights(self) -> list[float]:
@@ -146,7 +147,7 @@ class TransitDataset(data.Dataset):
             "label": label,
 
         }
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "Inspect the TransitDataset")
 
@@ -154,21 +155,28 @@ if __name__ == "__main__":
         help = "Path to dataset.h5 (default: data/processed/dataset.h5)")
     parser.add_argument("--scalars", type = Path, default = defaultScalarsPath,
         help = "Path to scalar_stats.json (default: data/processed/scalar_stats.json)")
-    
+
     args = parser.parse_args()
 
     dataset = TransitDataset(args.data, args.scalars)
-    print(len(dataset))
+    print(f"Dataset size: {len(dataset)}")
 
     sample = dataset[0]
 
     for key in sample:
-        print(f"{key}, {sample[key].shape}, {sample[key].dtype}")
+        print(f"  {key}: Shape = {sample[key].shape}, dtype = {sample[key].dtype}")
 
-    print(dataset[0]["label"])
+    print(f"\nFirst sample label (one-hot): {sample['label']}")
 
     splits = makeSplits(args.data)
 
-    print(len(splits[0]))
-    print(len(splits[1]))
-    print(len(splits[2]))
+    print(f"\nSplits: Train = {len(splits[0])}, Evaluate = {len(splits[1])}, Test = {len(splits[2])}")
+
+    labelCounts = dataset.labelCounts
+    labelNames = {0: "Exoplanet", 1: "Single Transit", 2: "Binary", 3: "Junk", 4: "Uncertain"}
+
+    print("\nLabel distribution:")
+
+    for labelIndex, count in sorted(labelCounts.items()):
+        name = labelNames.get(labelIndex, f"Unknown ({labelIndex})")
+        print(f"  {name}: {count}")
