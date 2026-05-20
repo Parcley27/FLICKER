@@ -1,5 +1,13 @@
+import sys
+from pathlib import Path
+
 import torch
 import torch.nn as nn
+
+repoRoot = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(repoRoot))
+
+from config import globalBins, localBins, secondaryBins
 
 class ConvolutionTower(nn.Module):
     def __init__(self, channelsIn, inputLength):

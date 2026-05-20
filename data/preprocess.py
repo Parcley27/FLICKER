@@ -13,9 +13,9 @@ import time
 import warnings
 import wotan
 
-globalBins = 201
-localBins = 61
-secondaryBins = 61
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from config import globalBins, localBins, secondaryBins
 
 localTransitDurations = 4
 
