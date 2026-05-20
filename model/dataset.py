@@ -19,26 +19,27 @@ noiseIntensity = 0.01
 def makeSplits(h5Path) -> list[list, list, list]:
     file = h5py.File(h5Path, "r")
 
-    allLabels = []
+# uses the pre-assigned split attribute from the HDF5 file 
+def makeSplits(h5Path) -> tuple[list, list, list]:
+    trainIndices, valIndices, testIndices = [], [], []
 
-    for ticID in file.keys():
-        for observationIndex in file[ticID].keys():
-            allLabels.append(int(file[ticID][observationIndex]["exoplanetLabel"][()]))
+    with h5py.File(h5Path, "r") as f:
+        i = 0
 
-    file.close()
+        for ticID in f.keys():
+            for obsIdx in f[ticID].keys():
+                split = f[ticID][obsIdx].attrs.get("split", "train")
 
-    allIndices = list(range(len(allLabels)))
+                if split == "train":
+                    trainIndices.append(i)
 
-    # uses a random split, but based on a set seed so it's reproducible
-    trainValIndices, testIndices, trainValLabels, _ = train_test_split(
-        allIndices, allLabels, test_size = 0.1, stratify = allLabels, random_state = 27
+                elif split == "val":
+                    valIndices.append(i)
 
-    )
+                else:
+                    testIndices.append(i)
 
-    trainIndices, valIndices = train_test_split(
-        trainValIndices, test_size = 1/9, stratify = trainValLabels, random_state = 27
-
-    )
+                i += 1
 
     return trainIndices, valIndices, testIndices
 
