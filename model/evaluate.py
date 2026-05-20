@@ -4,7 +4,11 @@ import numpy as np
 import torch
 
 from pathlib import Path
-from sklearn.metrics import recall_score, precision_score, average_precision_score
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import recall_score, precision_score, average_precision_score, precision_recall_curve
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
@@ -25,7 +29,7 @@ def parseArgs() -> argparse.Namespace:
     parser.add_argument("--scalars", type = Path, default = defaultScalarsPath,
         help = "Path to scalar_stats.json (default: data/processed/scalar_stats.json)")
     parser.add_argument("--checkpoint", type = Path, default = None,
-        help = "Path to model checkpoint (.pt file). Defaults to model/checkpoints/best.pt")
+        help = "Path to model checkpoint (.pt file). Defaults to most recent in model/checkpoints/")
     parser.add_argument("--batch-size", type = int, default = 64,
         help = "Batch size (default: 64)")
     parser.add_argument("--workers", type = int, default = 4,
@@ -39,13 +43,16 @@ def main():
     checkpoint = args.checkpoint
 
     if checkpoint is None:
-        checkpoint = checkpointPath / "best.pt"
+        # find the most recent best_*.pt checkpoint by timestamp in filename
+        candidates = sorted(checkpointPath.glob("best_*.pt"))
 
-        if not checkpoint.exists():
-            print(f"No checkpoint found at {checkpoint}")
+        if not candidates:
+            print(f"No checkpoints found in {checkpointPath}")
             print("Run train.py first or specify --checkpoint")
 
             return
+
+        checkpoint = candidates[-1]
 
     print(f"Using checkpoint {checkpoint}")
 
@@ -115,6 +122,21 @@ def main():
 
         printAndLog(f"  {threshold:.1f}     |  {thresholdPrecision:.4f}   | {thresholdRecall:.4f}")
 
+    # precision-recall curve
+    prPrecision, prRecall, _ = precision_recall_curve(labels, probabilities)
+
+    figure, axis = plt.subplots(figsize = (6, 5))
+
+    axis.plot(prRecall, prPrecision, linewidth = 2)
+    axis.set_xlabel("Recall")
+    axis.set_ylabel("Precision")
+    axis.set_title(f"Precision-Recall Curve (AUC-PR = {auPRc:.4f})")
+    axis.set_xlim(0, 1)
+    axis.set_ylim(0, 1.05)
+    axis.grid(True, alpha = 0.3)
+
+    figure.tight_layout()
+
     # save results
     resultsPath.mkdir(parents = True, exist_ok = True)
 
@@ -126,7 +148,12 @@ def main():
     with open(outputFile, "w") as f:
         f.write("\n".join(outputLines) + "\n")
 
+    prCurvePath = resultsPath / f"pr_curve_{timestamp}.png"
+    figure.savefig(prCurvePath, dpi = 150)
+    plt.close(figure)
+
     print(f"\nResults saved to {outputFile}")
+    print(f"PR curve saved to {prCurvePath}")
 
 if __name__ == "__main__":
     main()
