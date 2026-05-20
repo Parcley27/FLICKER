@@ -14,10 +14,7 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
 noiseIntensity = 0.01
 
-# splits data into train / validation / test sets
-# 80 / 10 / 10 % respectively
-def makeSplits(h5Path) -> list[list, list, list]:
-    file = h5py.File(h5Path, "r")
+numLabels = 5
 
 # uses the pre-assigned split attribute from the HDF5 file 
 def makeSplits(h5Path) -> tuple[list, list, list]:
@@ -119,11 +116,15 @@ class TransitDataset(data.Dataset):
 
         label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype=torch.float32)
 
-        if self.augment and label.item() == 1.0:
-            # add random noise to views
+        if self.augment and rawLabel == 0:
+            # add random noise to views only
             globalView += torch.randn_like(globalView) * noiseIntensity
             localView += torch.randn_like(localView) * noiseIntensity
             secondaryView += torch.randn_like(secondaryView) * noiseIntensity
+
+            # add noise to scalars, then re-apply NaN mask so missing values stay at 0
+            scalars += torch.randn_like(scalars) * noiseIntensity
+            scalars[self.nanMask] = 0.0
 
             flip = torch.rand(1) < 0.5
 
