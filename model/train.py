@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import os
 import torch
 
@@ -91,6 +92,7 @@ def main():
     os.makedirs(checkpointPath, exist_ok = True)
 
     bestAuPRc = 0.0
+    bestStateDict = None
 
     print(f"Starting training for {args.epochs} epochs...")
 
@@ -169,8 +171,7 @@ def main():
 
         if auPRc > bestAuPRc:
             bestAuPRc = auPRc
-
-            torch.save(model.state_dict(), checkpointPath / "best.pt")
+            bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
         currentLR = optimizer.param_groups[0]["lr"]
         summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {currentLR:.1e}"
@@ -179,6 +180,14 @@ def main():
             summary += f" | {batchesSkipped} batch(es) skipped"
 
         print(summary)
+
+    if bestStateDict is not None:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        torch.save(bestStateDict, checkpointPath / f"best_{timestamp}.pt")
+        print(f"Saved best model (AUC-PR {bestAuPRc:.4f}) to checkpoints/best_{timestamp}.pt")
+        
+    else:
+        print("No valid model was found during training.")
 
 if __name__ == "__main__":
     main()
