@@ -14,7 +14,7 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
 checkpointPath = repoRoot / "model" / "checkpoints"
 
-lossThreshold = 100.0
+lossThreshold = 10.0
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train the TransitClassifier model")
@@ -48,7 +48,6 @@ def main():
 
     trainingDataset = TransitDataset(args.data, args.scalars, trainingIndices, augment = True)
     validationDataset = TransitDataset(args.data, args.scalars, validationIndices)
-    testDataset = TransitDataset(args.data, args.scalars, testIndices)
 
     print("Building data loaders...")
     # sampler oversamples minority classes so batches are roughly balanced
@@ -72,21 +71,21 @@ def main():
 
     )
 
-    testLoader = torch.utils.data.DataLoader(
-        testDataset, batch_size = args.batch_size, shuffle = False,
-        num_workers = max(args.workers // 4, 1), pin_memory = True, persistent_workers = True,
-
-    )
-
     print("Building model...")
     model = TransitClassifier().to(device)
 
     # no pos_weight since the WeightedRandomSampler already handles class imbalance
     criteria = torch.nn.BCEWithLogitsLoss().to(device)
 
-    # "Adam" optimizer adjusts the learning rate per-weight based on gradient history
+    # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.0001)
+
+    # reduce learning rate when validation AUC-PR plateaus
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode = "max", patience = 4, factor = 0.5,
+
+    )
 
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)
@@ -113,7 +112,7 @@ def main():
 
             loss = criteria(predictions, batch["label"])
 
-            # skip batches with non-finite or extremely large losses
+            # skip batches with non-finite loss
             if not torch.isfinite(loss) or loss.item() > lossThreshold:
                 batchesSkipped += 1
 
@@ -160,21 +159,24 @@ def main():
         logits = torch.cat(logits)
         labels = torch.cat(labels)
 
-        # squish logits to 0 ... 1 
-        probabilities = torch.sigmoid(logits).numpy()
-        labels = labels.numpy()
+        # primary metric: AUC-PR on the exoplanet (E) column only
+        probabilities = torch.sigmoid(logits[:, 0]).numpy()
+        trueLabels = labels[:, 0].numpy()
 
-        auPRc = average_precision_score(labels, probabilities)
+        auPRc = average_precision_score(trueLabels, probabilities)
+
+        # step the scheduler based on validation AUC-PR
+        scheduler.step(auPRc)
 
         if auPRc > bestAuPRc:
             bestAuPRc = auPRc
 
-            torch.save(model.state_dict(), checkpointPath / f"best_{bestAuPRc:.4f}.pt")
+            torch.save(model.state_dict(), checkpointPath / "best.pt")
 
-        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | Current auPRc {auPRc:.4f} | Best auPRc {bestAuPRc:.4f}"
+        currentLR = optimizer.param_groups[0]["lr"]
+        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR(E) {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {currentLR:.1e}"
 
         if batchesSkipped > 0:
-            # extraneous loss
             summary += f" | {batchesSkipped} batch(es) skipped"
 
         print(summary)
