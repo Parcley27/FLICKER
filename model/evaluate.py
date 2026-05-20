@@ -1,5 +1,5 @@
 import argparse
-import datetime
+import re
 import numpy as np
 import torch
 
@@ -118,7 +118,9 @@ def main():
     # save results
     resultsPath.mkdir(parents = True, exist_ok = True)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # extract the timestamp from the checkpoint filename (e.g. best_20260520_143022.pt)
+    timestampMatch = re.search(r"\d{8}_\d{6}", checkpoint.stem)
+    timestamp = timestampMatch.group() if timestampMatch else "unknown"
     outputFile = resultsPath / f"eval_{timestamp}.txt"
 
     with open(outputFile, "w") as f:
