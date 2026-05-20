@@ -41,17 +41,17 @@ def main():
     print("Loading data...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # split the dataset into train / validation / test indices (80 / 10 / 10)
+    # split the dataset using pre-assigned train / val / test attributes from the HDF5 file
     splits = makeSplits(args.data)
 
-    trainingIndices, validationIndices, testIndices = splits[0], splits[1], splits[2]
+    trainingIndices, validationIndices, _ = splits[0], splits[1], splits[2]
 
     trainingDataset = TransitDataset(args.data, args.scalars, trainingIndices, augment = True)
     validationDataset = TransitDataset(args.data, args.scalars, validationIndices)
     testDataset = TransitDataset(args.data, args.scalars, testIndices)
 
     print("Building data loaders...")
-    # sampler oversamples the minority class so batches are roughly balanced
+    # sampler oversamples minority classes so batches are roughly balanced
     # replaces shuffle=True since the sampler handles randomisation
     trainSampler = torch.utils.data.WeightedRandomSampler(
         weights = trainingDataset.sampleWeights,
