@@ -10,53 +10,50 @@ sys.path.insert(0, str(repoRoot))
 from config import globalBins, localBins, secondaryBins
 
 class ConvolutionTower(nn.Module):
-    def __init__(self, channelsIn, inputLength):
-        
+    def __init__(self, channelsIn, inputLength, numBlocks = 3):
+
         super().__init__()
 
-        # layer(in, out, kernel)
-        # 16 32 64 is a standard starting point
-        # 5 wide to look at 5 adj time steps at once
-        self.layers = nn.Sequential(
-            # first layer (input)
-            nn.Conv1d(channelsIn, 16, 5),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
+        filterCounts = [16, 32, 64][:numBlocks]
 
-            # second (first hidden)
-            nn.Conv1d(16, 32, 5),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
+        layers = []
+        currentChannels = channelsIn
 
-            # third (second hidden)
-            nn.Conv1d(32, 64, 5),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
+        for filters in filterCounts:
+            layers.extend([
+                nn.Conv1d(currentChannels, filters, 5),
+                nn.BatchNorm1d(filters),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
 
-            # flatten (output layer)
-            nn.Flatten(),
-        
-        )
+            ])
+
+            currentChannels = filters
+
+        layers.append(nn.Flatten())
+
+        self.layers = nn.Sequential(*layers)
 
         with torch.no_grad():
             dummy = torch.zeros(1, channelsIn, inputLength)
             self.outputDimension = self.layers(dummy).numel()
-        
+
     def forward(self, x):
         return self.layers(x)
 
 class TransitClassifier(nn.Module):
-    def __init__(self, dropout = 0.5):
+    def __init__(self, scalarDimension = 12, numLabels = 5, dropout = 0.5):
         super().__init__()
 
-        self.dropout = dropout
+        # global view has 4 channels: median, std, transitFlag, hasData
+        self.globalTower = ConvolutionTower(4, globalBins, numBlocks = 3)
 
-        self.globalTower = ConvolutionTower(3, 201)
-        self.localTower = ConvolutionTower(2, 61)
-        self.secondaryTower = ConvolutionTower(2, 61)
-        
-        # 12 scalars plus the three curve views
-        fullyConnectedInput = 12 + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension
+        # local and secondary views have 2 channels: median, std
+        # 2 conv blocks for 61-bin inputs to preserve more spatial resolution
+        self.localTower = ConvolutionTower(2, localBins, numBlocks = 2)
+        self.secondaryTower = ConvolutionTower(2, secondaryBins, numBlocks = 2)
+
+        fullyConnectedInput = scalarDimension + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension
 
         self.fullyConnected = nn.Sequential(
             # input layer
@@ -74,36 +71,31 @@ class TransitClassifier(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            # output layer
-            nn.Linear(64, 1),
+            # output layer - one logit per label (E, S, B, J, N)
+            nn.Linear(64, numLabels),
 
         )
-    
+
     def forward(self, batch):
         globalView = batch["globalView"]
         localView = batch["localView"]
         secondaryView = batch["secondaryView"]
         scalars = batch["scalars"]
 
-        globalTower = self.globalTower(globalView)
-        localTower = self.localTower(localView)
-        secondaryTower = self.secondaryTower(secondaryView)
+        globalFeatures = self.globalTower(globalView)
+        localFeatures = self.localTower(localView)
+        secondaryFeatures = self.secondaryTower(secondaryView)
 
-        # combine everything into large vector/tensor thingy
-        vector = torch.cat([globalTower, localTower, secondaryTower, scalars], dim = 1)
+        vector = torch.cat([globalFeatures, localFeatures, secondaryFeatures, scalars], dim = 1)
 
-        tensor = self.fullyConnected(vector)
-        # squeeze from (batch, 1) to (batch,) for loss function
-        tensor = tensor.squeeze(1)
+        return self.fullyConnected(vector)
 
-        return tensor
-    
 if __name__ == "__main__":
     transitClassifier = TransitClassifier()
 
-    dummyGlobalView = torch.zeros(4, 3, 201)
-    dummyLocalView = torch.zeros(4, 2, 61)
-    dummySecondaryView = torch.zeros(4, 2, 61)
+    dummyGlobalView = torch.zeros(4, 4, globalBins)
+    dummyLocalView = torch.zeros(4, 2, localBins)
+    dummySecondaryView = torch.zeros(4, 2, secondaryBins)
     dummyScalars = torch.zeros(4, 12)
 
     dummyBatch = {
@@ -114,5 +106,8 @@ if __name__ == "__main__":
 
     }
 
-    tensor = transitClassifier(dummyBatch)
-    print(tensor.shape)
+    output = transitClassifier(dummyBatch)
+    print(f"Output shape: {output.shape}")
+
+    assert output.shape == torch.Size([4, 5]), f"Expected (4, 5), got {output.shape}"
+    print("All checks passed")
