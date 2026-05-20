@@ -107,16 +107,18 @@ class TransitDataset(data.Dataset):
         ticID, observationIndex = self.index[index]
         sample = self.file[ticID][observationIndex]
 
-        globalView = torch.tensor(sample["globalView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
-        localView = torch.tensor(sample["localView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
-        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype=torch.float32).nan_to_num(nan=0.0, posinf=0.0, neginf=0.0)
+        globalView = torch.tensor(sample["globalView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
+        localView = torch.tensor(sample["localView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
+        secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
 
-        scalars = sample["scalars"][()].copy()
-
-        scalars[self.nanMask] = 0.0
+        scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
 
-        label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype=torch.float32)
+        rawLabel = int(sample["label"][()]) # type: ignore
+        label = torch.zeros(numLabels, dtype=torch.float32)
+
+        if 0 <= rawLabel < numLabels:
+            label[rawLabel] = 1.0
 
         if self.augment and rawLabel == 0:
             # add random noise to views only
@@ -133,9 +135,8 @@ class TransitDataset(data.Dataset):
             if flip:
                 globalView = torch.flip(globalView, dims = [-1])
                 localView = torch.flip(localView, dims = [-1])
-                secondaryView = torch.flip(secondaryView, dims = [-1])
-
-            scalars += torch.randn_like(scalars) * noiseIntensity
+                # secondary view not flipped becasse it's centered on secondaryPhase,
+                # not phase 0, so flipping would be physically inconsistent
 
         return {
             "globalView": globalView,
