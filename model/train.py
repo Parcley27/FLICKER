@@ -24,8 +24,10 @@ def parseArgs() -> argparse.Namespace:
         help = "Path to dataset.h5 (default: data/processed/dataset.h5)")
     parser.add_argument("--scalars", type = Path, default = defaultScalarsPath,
         help = "Path to scalar_stats.json (default: data/processed/scalar_stats.json)")
-    parser.add_argument("--epochs", type = int, default = 20,
-        help = "Number of training epochs (default: 20)")
+    parser.add_argument("--steps", type = int, default = 20000,
+        help = "Total number of gradient steps (default: 20000)")
+    parser.add_argument("--val-interval", type = int, default = 500,
+        help = "Validate every N steps (default: 500)")
     parser.add_argument("--batch-size", type = int, default = 64,
         help = "Batch size (default: 64)")
     parser.add_argument("--workers", type = int, default = 8,
@@ -82,29 +84,27 @@ def main():
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.0001)
 
-    # reduce learning rate when validation AUC-PR plateaus
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode = "max", patience = 4, factor = 0.5,
-
-    )
-
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)
 
     bestAuPRc = 0.0
     bestStateDict = None
 
-    print(f"Starting training for {args.epochs} epochs...")
+    step = 0
+    intervalLoss = 0.0
+    intervalBatchesUsed = 0
+    intervalBatchesSkipped = 0
 
-    for epoch in range(args.epochs):
-        # training
-        # model.train() enables dropout so the model is regularised during training
-        model.train()
+    print(f"Starting training for {args.steps} steps (validating every {args.val_interval} steps)...")
 
-        trainingLoss = 0.0
-        batchesSkipped = 0
+    # model.train() enables dropout so the model is regularised during training
+    model.train()
 
+    while step < args.steps:
         for batch in trainingLoader:
+            if step >= args.steps:
+                break
+
             batch = {key: value.to(device) for key, value in batch.items()}
 
             # clear gradients from the previous batch before computing new ones
@@ -116,70 +116,74 @@ def main():
 
             # skip batches with non-finite loss
             if not torch.isfinite(loss) or loss.item() > lossThreshold:
-                batchesSkipped += 1
+                intervalBatchesSkipped += 1
+                step += 1
 
                 continue
 
             # backward pass computes how much each weight contributed to the loss
             loss.backward()
 
-            # maximum gradient
+            # clip maximum gradient norm to stabilise training
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
             # update weights using the gradients just computed
             optimizer.step()
 
-            trainingLoss += loss.item()
+            intervalLoss += loss.item()
+            intervalBatchesUsed += 1
+            step += 1
 
-        # average loss across all batches that were actually used
-        batchesUsed = len(trainingLoader) - batchesSkipped
-        trainingLoss /= max(batchesUsed, 1)
+            if step % args.val_interval == 0 or step >= args.steps:
+                avgTrainingLoss = intervalLoss / max(intervalBatchesUsed, 1)
 
-        # validation
-        # model.eval() disables dropout so predictions are deterministic
-        model.eval()
+                # validation — model.eval() disables dropout so predictions are deterministic
+                model.eval()
 
-        validationLoss = 0.0
-        logits = []
-        labels = []
+                validationLoss = 0.0
+                logits = []
+                labels = []
 
-        # no_grad skips gradient tracking since we're not updating weights here
-        with torch.no_grad():
-            for batch in validationLoader:
-                batch = {key: value.to(device) for key, value in batch.items()}
+                # no_grad skips gradient tracking since we're not updating weights here
+                with torch.no_grad():
+                    for valBatch in validationLoader:
+                        valBatch = {key: value.to(device) for key, value in valBatch.items()}
 
-                predictions = model(batch)
-                loss = criteria(predictions, batch["label"])
+                        valPredictions = model(valBatch)
+                        valLoss = criteria(valPredictions, valBatch["label"])
 
-                logits.append(predictions.detach().cpu())
-                labels.append(batch["label"].detach().cpu())
+                        logits.append(valPredictions.detach().cpu())
+                        labels.append(valBatch["label"].detach().cpu())
 
-                validationLoss += loss.item()
+                        validationLoss += valLoss.item()
 
-            validationLoss /= len(validationLoader)
+                validationLoss /= len(validationLoader)
 
-        logits = torch.cat(logits)
-        labels = torch.cat(labels)
+                logits = torch.cat(logits)
+                labels = torch.cat(labels)
 
-        probabilities = torch.sigmoid(logits).numpy()
-        trueLabels = labels.numpy()
+                probabilities = torch.sigmoid(logits).numpy()
+                trueLabels = labels.numpy()
 
-        auPRc = average_precision_score(trueLabels, probabilities)
+                auPRc = average_precision_score(trueLabels, probabilities)
 
-        # step the scheduler based on validation AUC-PR
-        scheduler.step(auPRc)
+                if auPRc > bestAuPRc:
+                    bestAuPRc = auPRc
+                    bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
-        if auPRc > bestAuPRc:
-            bestAuPRc = auPRc
-            bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
+                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {args.lr:.1e}"
 
-        currentLR = optimizer.param_groups[0]["lr"]
-        summary = f"Epoch {epoch + 1}: Training loss {trainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {currentLR:.1e}"
+                if intervalBatchesSkipped > 0:
+                    summary += f" | {intervalBatchesSkipped} batch(es) skipped"
 
-        if batchesSkipped > 0:
-            summary += f" | {batchesSkipped} batch(es) skipped"
+                print(summary)
 
-        print(summary)
+                # reset interval accumulators and return to training mode
+                intervalLoss = 0.0
+                intervalBatchesUsed = 0
+                intervalBatchesSkipped = 0
+
+                model.train()
 
     if bestStateDict is not None:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
