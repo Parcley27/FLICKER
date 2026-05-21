@@ -6,7 +6,7 @@ halfPeriodBins = 61
 numClasses = 4
 classNames = ["E", "S", "B", "J"]
 
-defaultSteps = 5000
+defaultSteps = 20000
 defaultValInterval = 500
 defaultBatchSize = 64
 defaultWorkers = 8

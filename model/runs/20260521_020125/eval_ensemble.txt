@@ -1,0 +1,28 @@
+Evaluation: ensemble
+Test samples: 2431
+  E: 244
+  S: 33
+  B: 140
+  J: 2014
+
+Macro-F1: 0.6460 | Balanced Accuracy: 0.7055
+
+              precision    recall  f1-score   support
+
+           E       0.80      0.81      0.80       244
+           S       0.23      0.21      0.22        33
+           B       0.47      0.89      0.62       140
+           J       0.97      0.91      0.94      2014
+
+    accuracy                           0.89      2431
+   macro avg       0.62      0.71      0.65      2431
+weighted avg       0.92      0.89      0.90      2431
+
+Confusion Matrix (rows = actual, columns = predicted)
+            E      S      B      J
+     E    198      4     14     28
+     S     11      7      1     14
+     B      6      0    124     10
+     J     34     19    123   1838
+
+Exoplanet (E) one-vs-rest AUC-PR: 0.8875
