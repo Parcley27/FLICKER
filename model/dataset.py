@@ -104,6 +104,7 @@ class TransitDataset(data.Dataset):
         globalView = torch.tensor(sample["globalView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
         localView = torch.tensor(sample["localView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
         secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
+        halfPeriodView = torch.tensor(sample["halfPeriodView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
 
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
@@ -115,6 +116,7 @@ class TransitDataset(data.Dataset):
             globalView += torch.randn_like(globalView) * noiseIntensity
             localView += torch.randn_like(localView) * noiseIntensity
             secondaryView += torch.randn_like(secondaryView) * noiseIntensity
+            halfPeriodView += torch.randn_like(halfPeriodView) * noiseIntensity
 
             # add noise to scalars, then re-apply NaN mask so missing values stay at 0
             scalars += torch.randn_like(scalars) * noiseIntensity
@@ -125,13 +127,15 @@ class TransitDataset(data.Dataset):
             if flip:
                 globalView = torch.flip(globalView, dims = [-1])
                 localView = torch.flip(localView, dims = [-1])
-                # secondary view not flipped becasse it's centered on secondaryPhase,
+                halfPeriodView = torch.flip(halfPeriodView, dims = [-1])
+                # secondary view not flipped because it's centered on secondaryPhase,
                 # not phase 0, so flipping would be physically inconsistent
 
         return {
             "globalView": globalView,
             "localView": localView,
             "secondaryView": secondaryView,
+            "halfPeriodView": halfPeriodView,
             "scalars": scalars,
             "label": label,
 

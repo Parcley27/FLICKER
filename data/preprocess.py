@@ -15,7 +15,7 @@ import wotan
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import globalBins, localBins, secondaryBins
+from config import globalBins, localBins, secondaryBins, halfPeriodBins
 
 localTransitDurations = 4
 
@@ -206,7 +206,7 @@ def refineEpoch(phases, flatFlux, row) -> tuple[np.ndarray, np.ndarray, float]:
 
     return (phases, flatFlux, observedPhase)
 
-def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, float, np.ndarray, float, float]:
+def buildViews(phases, flatFlux, row):
     duration = float(row["Duration"])
     period = float(row["Period"])
 
@@ -407,14 +407,62 @@ def buildViews(phases, flatFlux, row) -> tuple[np.ndarray, float, np.ndarray, fl
         secondaryView[:, 0] /= -secondaryScaleFactor
         secondaryView[:, 1] /= -secondaryScaleFactor
 
+    # half-period local view: fold at period/2 to detect secondary eclipses
+    # for a symmetric eclipsing binary, primary (phase 0) and secondary (phase ±0.5)
+    # both map to half-period phase 0, producing a deeper or double dip
+    # for a planet, only the transit maps to phase 0 — out-of-transit is flat
+    halfPeriodPhases = (phases * 2.0) % 1.0
+    halfPeriodPhases[halfPeriodPhases > 0.5] -= 1.0
+
+    # same ±2 transit duration window as the local view, expressed in half-period phase units
+    halfPeriodHalfWidth = (localTransitDurations / 2) * duration / (period / 2)
+
+    halfPeriodMask = np.abs(halfPeriodPhases) < halfPeriodHalfWidth
+    halfPeriodWindowPhases = halfPeriodPhases[halfPeriodMask]
+    halfPeriodWindowFlux = flatFlux[halfPeriodMask]
+
+    halfPeriodBinEdges = np.linspace(-halfPeriodHalfWidth, halfPeriodHalfWidth, halfPeriodBins + 1)
+    halfPeriodBinIndices = np.digitize(halfPeriodWindowPhases, halfPeriodBinEdges) - 1
+    np.clip(halfPeriodBinIndices, 0, halfPeriodBins - 1, out = halfPeriodBinIndices)
+
+    medians, stds = [], []
+
+    for hpBin in range(halfPeriodBins):
+        binFlux = halfPeriodWindowFlux[halfPeriodBinIndices == hpBin]
+
+        if len(binFlux) == 0:
+            medians.append(1.0)
+            stds.append(0.0)
+
+        else:
+            medians.append(np.median(binFlux))
+            stds.append(np.std(binFlux))
+
+    halfPeriodView = np.column_stack([medians, stds])
+
+    halfPeriodBinCentres = 0.5 * (halfPeriodBinEdges[:-1] + halfPeriodBinEdges[1:])
+    halfPeriodTransitFlags = np.abs(halfPeriodBinCentres) < 0.5 * duration / (period / 2)
+
+    outOfTransitHalfPeriod = halfPeriodView[~halfPeriodTransitFlags, 0]
+    halfPeriodBaseline = np.median(outOfTransitHalfPeriod) if len(outOfTransitHalfPeriod) > 0 else np.median(halfPeriodView[:, 0])
+    halfPeriodView[:, 0] -= halfPeriodBaseline
+
+    halfPeriodScaleFactor = np.min(halfPeriodView[:, 0])
+
+    if halfPeriodScaleFactor < 0:
+        halfPeriodScaleFactor = min(halfPeriodScaleFactor, -1e-6)
+        halfPeriodView[:, 0] /= -halfPeriodScaleFactor
+        halfPeriodView[:, 1] /= -halfPeriodScaleFactor
+
     # clamp all view values to a reasonable range
-    # outlier per-bin std values can reach order of 10^29 after dividing by shallow transit depths, 
+    # outlier per-bin std values can reach order of 10^29 after dividing by shallow transit depths,
     # overwhelming the conv towers
     np.clip(globalView, -5.0, 5.0, out = globalView)
     np.clip(localView, -5.0, 5.0, out = localView)
     np.clip(secondaryView, -5.0, 5.0, out = secondaryView)
+    np.clip(halfPeriodView, -5.0, 5.0, out = halfPeriodView)
 
-    return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase) # type: ignore
+    return (globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase, halfPeriodView)
 
 def processCurveEvent(args: tuple) -> dict:
     logging.getLogger(__name__).setLevel(logging.ERROR)
@@ -456,7 +504,7 @@ def processCurveEvent(args: tuple) -> dict:
 
         phases, flatFlux, _ = refineEpoch(phases, flatFlux, row)
 
-        globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase = buildViews(phases, flatFlux, row)
+        globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase, halfPeriodView = buildViews(phases, flatFlux, row)
 
         period = float(row["Period"])
         duration = float(row["Duration"])
@@ -465,12 +513,13 @@ def processCurveEvent(args: tuple) -> dict:
         epoch = float(row["Epoch"])
         split = str(row["Split"])
 
-        # fall back to SRadEst (paper's Bayesian estimate) before defaulting to NaN
+        # fall back to SRadEst (Astronet's Bayesian estimate) before defaulting to NaN
         stellarMass = float(row["SMass"]) if pd.notna(row["SMass"]) else np.nan
         stellarRadius = (
             float(row["SRad"]) if pd.notna(row["SRad"])
             else float(row["SRadEst"]) if pd.notna(row["SRadEst"])
             else np.nan
+
         )
 
         nPoints = np.log1p(len(times))
@@ -494,6 +543,7 @@ def processCurveEvent(args: tuple) -> dict:
             "globalView": globalView.astype(np.float32),
             "localView": localView.astype(np.float32),
             "secondaryView": secondaryView.astype(np.float32),
+            "halfPeriodView": halfPeriodView.astype(np.float32),
             "scalars": scalars,
             "label": label,
             "exoplanetLabel": exoplanetLabel,
@@ -622,6 +672,7 @@ def main():
                     group.create_dataset("globalView", data = result["globalView"])
                     group.create_dataset("localView", data = result["localView"])
                     group.create_dataset("secondaryView", data = result["secondaryView"])
+                    group.create_dataset("halfPeriodView", data = result["halfPeriodView"])
                     group.create_dataset("scalars", data = result["scalars"])
                     group.create_dataset("label", data = result["label"])
                     group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])
