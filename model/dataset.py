@@ -111,7 +111,7 @@ class TransitDataset(data.Dataset):
 
         label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype = torch.float32) # type: ignore
 
-        if self.augment and label.item() == 1.0:
+        if self.augment:
             # add random noise to views only
             globalView += torch.randn_like(globalView) * noiseIntensity
             localView += torch.randn_like(localView) * noiseIntensity

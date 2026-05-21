@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import math
 import os
 import torch
 
@@ -55,22 +56,8 @@ def main():
     print("Building data loaders...")
     counts = trainingDataset.labelCounts
 
-    # each positive is seen ~2x per sampler epoch, negatives are undersampled
-    # this reduces how aggressively the sampler inflates the positive prior
-    # compared to num_samples = len(dataset) which draws ~9,960 positives per epoch
-    samplerNumSamples = 4 * counts["positive"]
-
-    # sampler oversamples minority classes so batches are roughly balanced
-    # replaces shuffle=True since the sampler handles randomisation
-    trainSampler = torch.utils.data.WeightedRandomSampler(
-        weights = trainingDataset.sampleWeights,
-        num_samples = samplerNumSamples,
-        replacement = True,
-
-    )
-
     trainingLoader = torch.utils.data.DataLoader(
-        trainingDataset, batch_size = args.batch_size, sampler = trainSampler,
+        trainingDataset, batch_size = args.batch_size, shuffle = True,
         num_workers = args.workers, pin_memory = True, persistent_workers = True,
 
     )
@@ -90,7 +77,7 @@ def main():
 
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
-    optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.001)
 
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)

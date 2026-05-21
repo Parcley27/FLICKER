@@ -42,7 +42,7 @@ class ConvolutionTower(nn.Module):
         return self.layers(x)
 
 class TransitClassifier(nn.Module):
-    def __init__(self, scalarDimension = 12, numLabels = 1, dropout = 0.3):
+    def __init__(self, scalarDimension = 12, numLabels = 1, dropout = 0.5):
         super().__init__()
 
         # global view has 4 channels: median, std, transitFlag, hasData
