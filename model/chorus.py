@@ -36,6 +36,8 @@ def parseArgs() -> argparse.Namespace:
         help = "DataLoader worker count for training (default: 8)")
     parser.add_argument("--lr", type = float, default = defaultLR,
         help = "Learning rate (default: 1e-4)")
+    parser.add_argument("--reset-step", type = int, default = 0,
+        help = "Reset optimizer state at this step (0 = disabled)")
     parser.add_argument("--model-count", type = int, default = 10,
         help = "Number of models to train (default: 5)")
     parser.add_argument("--seed", type = int, default = 27,
@@ -71,6 +73,7 @@ def main():
             batch_size = args.batch_size,
             workers = args.workers,
             lr = args.lr,
+            reset_step = args.reset_step,
 
         )
 
@@ -79,8 +82,8 @@ def main():
         if bestStateDict is not None:
             modelPath = runDir / f"model_{i}.pt"
             torch.save(bestStateDict, modelPath)
-            summaryLines.append(f"Model {i}: seed {seed} | Macro-F1 {bestScore:.4f} | {modelPath.name}")
-            print(f"Saved model_{i}.pt (Macro-F1 {bestScore:.4f})")
+            summaryLines.append(f"Model {i}: seed {seed} | E AUC-PR {bestScore:.4f} | {modelPath.name}")
+            print(f"Saved model_{i}.pt (E AUC-PR {bestScore:.4f})")
 
         else:
             summaryLines.append(f"Model {i}: seed {seed} | FAILED")

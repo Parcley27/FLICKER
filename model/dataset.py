@@ -16,6 +16,10 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 
 noiseIntensity = 0.01
 
+def remapLabel(rawLabel):
+    """Merge N (4) into J (3) — both mean 'not a planet candidate'."""
+    return 3 if rawLabel == 4 else rawLabel
+
 # uses the pre-assigned split attribute from the HDF5 file 
 def makeSplits(h5Path) -> tuple[list, list, list]:
     trainIndices, valIndices, testIndices = [], [], []
@@ -90,7 +94,7 @@ class TransitDataset(data.Dataset):
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                label = int(f[ticID][obsIdx]["label"][()]) # type: ignore
+                label = remapLabel(int(f[ticID][obsIdx]["label"][()])) # type: ignore
                 counts[label] += 1
 
         return counts
@@ -101,7 +105,7 @@ class TransitDataset(data.Dataset):
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                labels.append(int(f[ticID][obsIdx]["label"][()])) # type: ignore
+                labels.append(remapLabel(int(f[ticID][obsIdx]["label"][()]))) # type: ignore
 
         counts = self.labelCounts
         weightByLabel = {i: 1.0 / max(counts[i], 1) for i in range(numClasses)}
@@ -122,7 +126,7 @@ class TransitDataset(data.Dataset):
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
 
-        label = torch.tensor(int(sample["label"][()]), dtype = torch.long) # type: ignore
+        label = torch.tensor(remapLabel(int(sample["label"][()])), dtype = torch.long) # type: ignore
 
         if self.augment:
             # add random noise to views only
