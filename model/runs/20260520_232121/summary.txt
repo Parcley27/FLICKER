@@ -1,0 +1,10 @@
+Model 0: seed 27 | AUC-PR 0.8686 | model_0.pt
+Model 1: seed 28 | AUC-PR 0.8646 | model_1.pt
+Model 2: seed 29 | AUC-PR 0.8740 | model_2.pt
+Model 3: seed 30 | AUC-PR 0.8756 | model_3.pt
+Model 4: seed 31 | AUC-PR 0.8700 | model_4.pt
+Model 5: seed 32 | AUC-PR 0.8700 | model_5.pt
+Model 6: seed 33 | AUC-PR 0.8648 | model_6.pt
+Model 7: seed 34 | AUC-PR 0.8710 | model_7.pt
+Model 8: seed 35 | AUC-PR 0.8694 | model_8.pt
+Model 9: seed 36 | AUC-PR 0.8785 | model_9.pt

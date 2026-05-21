@@ -40,54 +40,12 @@ def parseArgs() -> argparse.Namespace:
 
     return parser.parse_args()
 
-def main():
-    args = parseArgs()
-
-    checkpoint = args.checkpoint
-
-    if checkpoint is None:
-        # find the most recent best_*.pt checkpoint by timestamp in filename
-        candidates = sorted(checkpointPath.glob("best_*.pt"))
-
-        if not candidates:
-            print(f"No checkpoints found in {checkpointPath}")
-            print("Run train.py first or specify --checkpoint")
-
-            return
-
-        checkpoint = candidates[-1]
-
-    print(f"Using checkpoint {checkpoint}")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    print("Building model...")
-    model = TransitClassifier().to(device)
-
-    model.load_state_dict(torch.load(checkpoint, map_location = device, weights_only = True))
-
-    model.eval()
-
-    print("Building data loader...")
-    splits = makeSplits(args.data)
-
-    testIndices = splits[2]
-
-    testDataset = TransitDataset(args.data, args.scalars, testIndices)
-
-    persistWorkers = args.workers > 0
-
-    testLoader = torch.utils.data.DataLoader(
-        testDataset, batch_size = args.batch_size, shuffle = False,
-        num_workers = args.workers, pin_memory = True, persistent_workers = persistWorkers,
-
-    )
-
+def runInference(model, dataLoader, device) -> tuple[np.ndarray, np.ndarray]:
     logits = []
     labels = []
 
     with torch.no_grad():
-        for batch in testLoader:
+        for batch in dataLoader:
             batch = {key: value.to(device) for key, value in batch.items()}
 
             predictions = model(batch)
@@ -101,6 +59,9 @@ def main():
     probabilities = torch.sigmoid(logits).numpy()
     labels = labels.numpy()
 
+    return probabilities, labels
+
+def computeMetrics(probabilities, labels, outputDir, tag = None):
     auPRc = average_precision_score(labels, probabilities)
     precision = precision_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
     recall = recall_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
@@ -115,7 +76,7 @@ def main():
         outputLines.append(line)
 
     # summary
-    printAndLog(f"Checkpoint: {checkpoint}")
+    printAndLog(f"Evaluation: {tag}")
     printAndLog(f"Test samples: {len(labels)}")
 
     positiveCount = int(labels.sum())
@@ -166,22 +127,72 @@ def main():
     figure.tight_layout()
 
     # save results
-    resultsPath.mkdir(parents = True, exist_ok = True)
+    outputDir = Path(outputDir)
+    outputDir.mkdir(parents = True, exist_ok = True)
 
-    # extract the timestamp from the checkpoint filename (e.g. best_20260520_143022.pt)
-    timestampMatch = re.search(r"\d{8}_\d{6}", checkpoint.stem)
-    timestamp = timestampMatch.group() if timestampMatch else "unknown"
-    outputFile = resultsPath / f"eval_{timestamp}.txt"
+    outputFile = outputDir / f"eval_{tag}.txt"
 
     with open(outputFile, "w") as f:
         f.write("\n".join(outputLines) + "\n")
 
-    prCurvePath = resultsPath / f"pr_curve_{timestamp}.png"
+    prCurvePath = outputDir / f"pr_curve_{tag}.png"
     figure.savefig(prCurvePath, dpi = 150)
     plt.close(figure)
 
     print(f"\nResults saved to {outputFile}")
     print(f"PR curve saved to {prCurvePath}")
+
+def main():
+    args = parseArgs()
+
+    checkpoint = args.checkpoint
+
+    if checkpoint is None:
+        # find the most recent best_*.pt checkpoint by timestamp in filename
+        candidates = sorted(checkpointPath.glob("best_*.pt"))
+
+        if not candidates:
+            print(f"No checkpoints found in {checkpointPath}")
+            print("Run train.py first or specify --checkpoint")
+
+            return
+
+        checkpoint = candidates[-1]
+
+    print(f"Using checkpoint {checkpoint}")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    print("Building model...")
+    model = TransitClassifier().to(device)
+
+    model.load_state_dict(torch.load(checkpoint, map_location = device, weights_only = True))
+
+    model.eval()
+
+    print("Building data loader...")
+    splits = makeSplits(args.data)
+
+    testIndices = splits[2]
+
+    testDataset = TransitDataset(args.data, args.scalars, testIndices)
+
+    persistWorkers = args.workers > 0
+
+    testLoader = torch.utils.data.DataLoader(
+        testDataset, batch_size = args.batch_size, shuffle = False,
+        num_workers = args.workers, pin_memory = True, persistent_workers = persistWorkers,
+
+    )
+
+    probabilities, labels = runInference(model, testLoader, device)
+
+    timestampMatch = re.search(r"\d{8}_\d{6}", checkpoint.stem)
+    tag = timestampMatch.group() if timestampMatch else "unknown"
+
+    computeMetrics(probabilities, labels, resultsPath, tag)
+
+    
 
 if __name__ == "__main__":
     main()

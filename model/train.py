@@ -9,6 +9,7 @@ from sklearn.metrics import average_precision_score
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
+from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
@@ -25,23 +26,20 @@ def parseArgs() -> argparse.Namespace:
         help = "Path to dataset.h5 (default: data/processed/dataset.h5)")
     parser.add_argument("--scalars", type = Path, default = defaultScalarsPath,
         help = "Path to scalar_stats.json (default: data/processed/scalar_stats.json)")
-    parser.add_argument("--steps", type = int, default = 20000,
-        help = "Total number of gradient steps (default: 20000)")
-    parser.add_argument("--val-interval", type = int, default = 500,
+    parser.add_argument("--steps", type = int, default = defaultSteps,
+        help = "Total number of gradient steps (default: 5000)")
+    parser.add_argument("--val-interval", type = int, default = defaultValInterval,
         help = "Validate every N steps (default: 500)")
-    parser.add_argument("--batch-size", type = int, default = 64,
+    parser.add_argument("--batch-size", type = int, default = defaultBatchSize,
         help = "Batch size (default: 64)")
-    parser.add_argument("--workers", type = int, default = 8,
+    parser.add_argument("--workers", type = int, default = defaultWorkers,
         help = "DataLoader worker count for training (default: 8)")
-    parser.add_argument("--lr", type = float, default = 1e-4,
+    parser.add_argument("--lr", type = float, default = defaultLR,
         help = "Learning rate (default: 1e-4)")
 
     return parser.parse_args()
 
-
-def main():
-    args = parseArgs()
-
+def trainModel(args) -> tuple[dict | None, float | float]:
     print("Loading data...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -132,7 +130,8 @@ def main():
             if step % args.val_interval == 0 or step >= args.steps:
                 avgTrainingLoss = intervalLoss / max(intervalBatchesUsed, 1)
 
-                # validation — model.eval() disables dropout so predictions are deterministic
+                # validation
+                # model.eval() disables dropout so predictions are deterministic
                 model.eval()
 
                 validationLoss = 0.0
@@ -179,6 +178,13 @@ def main():
                 intervalBatchesSkipped = 0
 
                 model.train()
+    
+    return bestStateDict, bestAuPRc # type: ignore
+
+def main():
+    args = parseArgs()
+
+    bestStateDict, bestAuPRc = trainModel(args)
 
     if bestStateDict is not None:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

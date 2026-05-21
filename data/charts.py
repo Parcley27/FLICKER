@@ -124,7 +124,7 @@ def generateChart(ticID, predictedLabel = None):
                   ha = "center", va = "center", fontsize = 9, fontfamily = "monospace",
                   color = "#333333")
 
-    # global view — full width
+    # global view (full width)
     globalAx = fig.add_subplot(outer[1])
 
     globalMedian = globalView[:, 0]

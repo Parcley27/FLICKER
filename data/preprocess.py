@@ -410,7 +410,7 @@ def buildViews(phases, flatFlux, row):
     # half-period local view: fold at period/2 to detect secondary eclipses
     # for a symmetric eclipsing binary, primary (phase 0) and secondary (phase ±0.5)
     # both map to half-period phase 0, producing a deeper or double dip
-    # for a planet, only the transit maps to phase 0 — out-of-transit is flat
+    # for a planet, only the transit maps to phase 0 - out-of-transit is flat
     halfPeriodPhases = (phases * 2.0) % 1.0
     halfPeriodPhases[halfPeriodPhases > 0.5] -= 1.0
 
