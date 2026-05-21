@@ -84,8 +84,9 @@ def main():
     print("Building model...")
     model = TransitClassifier().to(device)
 
-    # no pos_weight since the WeightedRandomSampler already handles class imbalance
-    criteria = torch.nn.BCEWithLogitsLoss().to(device)
+    # sqrt of inverse frequency ratio softens the imbalance correction
+    posWeight = torch.tensor([math.sqrt(counts["negative"] / counts["positive"])], dtype = torch.float32).to(device)
+    criteria = torch.nn.BCEWithLogitsLoss(pos_weight = posWeight).to(device)
 
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
