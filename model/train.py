@@ -91,6 +91,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.001)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = args.steps, eta_min = 1e-6)
 
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)
@@ -137,6 +138,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
 
             # update weights using the gradients just computed
             optimizer.step()
+            scheduler.step()
 
             intervalLoss += loss.item()
             intervalBatchesUsed += 1
@@ -144,6 +146,8 @@ def trainModel(args) -> tuple[dict | None, float | float]:
 
             if args.reset_step > 0 and step == args.reset_step:
                 optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.001)
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = args.steps - step, eta_min = 1e-6)
+                
                 print(f"Optimizer reset at step {step}")
 
             if step % args.val_interval == 0 or step >= args.steps:
@@ -184,7 +188,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
                     bestScore = eAuPRc
                     bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
-                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | Best {bestScore:.4f} | LR {args.lr:.1e}"
+                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | Best {bestScore:.4f} | LR {optimizer.param_groups[0]['lr']:.1e}"
 
                 if intervalBatchesSkipped > 0:
                     summary += f" | {intervalBatchesSkipped} batch(es) skipped"
