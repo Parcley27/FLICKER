@@ -53,11 +53,18 @@ def main():
     validationDataset = TransitDataset(args.data, args.scalars, validationIndices)
 
     print("Building data loaders...")
+    counts = trainingDataset.labelCounts
+
+    # each positive is seen ~2x per sampler epoch, negatives are undersampled
+    # this reduces how aggressively the sampler inflates the positive prior
+    # compared to num_samples = len(dataset) which draws ~9,960 positives per epoch
+    samplerNumSamples = 4 * counts["positive"]
+
     # sampler oversamples minority classes so batches are roughly balanced
     # replaces shuffle=True since the sampler handles randomisation
     trainSampler = torch.utils.data.WeightedRandomSampler(
         weights = trainingDataset.sampleWeights,
-        num_samples = len(trainingDataset),
+        num_samples = samplerNumSamples,
         replacement = True,
 
     )
