@@ -3,6 +3,7 @@ import datetime
 import numpy as np
 import os
 import torch
+import torch.nn.functional as F
 
 from pathlib import Path
 from sklearn.metrics import average_precision_score
@@ -18,6 +19,15 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 checkpointPath = repoRoot / "model" / "checkpoints"
 
 lossThreshold = 10.0
+focalGamma = 2.0
+
+def focalLoss(logits, targets, classWeights, gamma = focalGamma):
+    perSampleLoss = F.cross_entropy(logits, targets, weight = classWeights, reduction = "none")
+    probs = torch.softmax(logits, dim = 1)
+    trueClassProbs = probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+    focalWeight = (1 - trueClassProbs) ** gamma
+    
+    return (focalWeight * perSampleLoss).mean()
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train the TransitClassifier model")
@@ -78,8 +88,6 @@ def trainModel(args) -> tuple[dict | None, float | float]:
         dtype = torch.float32,
     ).to(device)
 
-    criteria = torch.nn.CrossEntropyLoss(weight = classWeights).to(device)
-
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.001)
@@ -112,7 +120,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
 
             predictions = model(batch)
 
-            loss = criteria(predictions, batch["label"])
+            loss = focalLoss(predictions, batch["label"], classWeights)
 
             # skip batches with non-finite loss
             if not torch.isfinite(loss) or loss.item() > lossThreshold:
@@ -155,7 +163,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
                         valBatch = {key: value.to(device) for key, value in valBatch.items()}
 
                         valPredictions = model(valBatch)
-                        valLoss = criteria(valPredictions, valBatch["label"])
+                        valLoss = focalLoss(valPredictions, valBatch["label"], classWeights)
 
                         logits.append(valPredictions.detach().cpu())
                         labels.append(valBatch["label"].detach().cpu())
