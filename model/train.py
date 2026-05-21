@@ -91,7 +91,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
     optimizer = torch.optim.Adam(model.parameters(), lr = args.lr, weight_decay = 0.001)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = args.steps, eta_min = 1e-6)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max = args.steps, eta_min = 1e-5)
 
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)
