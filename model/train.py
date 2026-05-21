@@ -1,15 +1,16 @@
 import argparse
 import datetime
 import math
+import numpy as np
 import os
 import torch
 
 from pathlib import Path
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import f1_score
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
-from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR
+from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR, numClasses
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
@@ -69,9 +70,14 @@ def trainModel(args) -> tuple[dict | None, float | float]:
     print("Building model...")
     model = TransitClassifier().to(device)
 
-    # sqrt of inverse frequency ratio softens the imbalance correction
-    posWeight = torch.tensor([math.sqrt(counts["negative"] / counts["positive"])], dtype = torch.float32).to(device)
-    criteria = torch.nn.BCEWithLogitsLoss(pos_weight = posWeight).to(device)
+    # class weights from inverse frequency, sqrt-softened to avoid over-correcting
+    totalSamples = sum(counts)
+    classWeights = torch.tensor(
+        [math.sqrt(totalSamples / max(counts[i], 1)) for i in range(numClasses)],
+        dtype = torch.float32,
+    ).to(device)
+
+    criteria = torch.nn.CrossEntropyLoss(weight = classWeights).to(device)
 
     # Adam adjusts the learning rate per-weight based on gradient history
     # weight_decay adds a penalty for large weights to discourage overfitting
@@ -80,7 +86,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
     print("Creating checkpoint directory...")
     os.makedirs(checkpointPath, exist_ok = True)
 
-    bestAuPRc = 0.0
+    bestScore = 0.0
     bestStateDict = None
 
     step = 0
@@ -156,16 +162,16 @@ def trainModel(args) -> tuple[dict | None, float | float]:
                 logits = torch.cat(logits)
                 labels = torch.cat(labels)
 
-                probabilities = torch.sigmoid(logits).numpy()
+                predictions = torch.argmax(logits, dim = 1).numpy()
                 trueLabels = labels.numpy()
 
-                auPRc = average_precision_score(trueLabels, probabilities)
+                macroF1 = f1_score(trueLabels, predictions, average = "macro", zero_division = 0)
 
-                if auPRc > bestAuPRc:
-                    bestAuPRc = auPRc
+                if macroF1 > bestScore:
+                    bestScore = macroF1
                     bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
-                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | AUC-PR {auPRc:.4f} | Best {bestAuPRc:.4f} | LR {args.lr:.1e}"
+                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | Macro-F1 {macroF1:.4f} | Best {bestScore:.4f} | LR {args.lr:.1e}"
 
                 if intervalBatchesSkipped > 0:
                     summary += f" | {intervalBatchesSkipped} batch(es) skipped"
@@ -179,17 +185,17 @@ def trainModel(args) -> tuple[dict | None, float | float]:
 
                 model.train()
     
-    return bestStateDict, bestAuPRc # type: ignore
+    return bestStateDict, bestScore # type: ignore
 
 def main():
     args = parseArgs()
 
-    bestStateDict, bestAuPRc = trainModel(args)
+    bestStateDict, bestScore = trainModel(args)
 
     if bestStateDict is not None:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         torch.save(bestStateDict, checkpointPath / f"best_{timestamp}.pt")
-        print(f"Saved best model (AUC-PR {bestAuPRc:.4f}) to checkpoints/best_{timestamp}.pt")
+        print(f"Saved best model (Macro-F1 {bestScore:.4f}) to checkpoints/best_{timestamp}.pt")
         
     else:
         print("No valid model was found during training.")

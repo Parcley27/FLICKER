@@ -74,13 +74,13 @@ def main():
 
         )
 
-        bestStateDict, bestAuPRc = trainModel(trainingArgs)
+        bestStateDict, bestScore = trainModel(trainingArgs)
 
         if bestStateDict is not None:
             modelPath = runDir / f"model_{i}.pt"
             torch.save(bestStateDict, modelPath)
-            summaryLines.append(f"Model {i}: seed {seed} | AUC-PR {bestAuPRc:.4f} | {modelPath.name}")
-            print(f"Saved model_{i}.pt (AUC-PR {bestAuPRc:.4f})")
+            summaryLines.append(f"Model {i}: seed {seed} | Macro-F1 {bestScore:.4f} | {modelPath.name}")
+            print(f"Saved model_{i}.pt (Macro-F1 {bestScore:.4f})")
 
         else:
             summaryLines.append(f"Model {i}: seed {seed} | FAILED")

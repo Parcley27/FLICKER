@@ -8,6 +8,8 @@ import torch
 import torch.utils.data as data
 from pathlib import Path
 
+from config import numClasses, classNames
+
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
 defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
@@ -56,6 +58,16 @@ class TransitDataset(data.Dataset):
         if indices is not None:
             self.index = self.index[indices]
 
+        # filter out unlabeled samples (label == -1)
+        filtered = []
+
+        with h5py.File(h5Path, "r") as f:
+            for ticID, obsIdx in self.index:
+                if int(f[ticID][obsIdx]["label"][()]) != -1: # type: ignore
+                    filtered.append((ticID, obsIdx))
+
+        self.index = np.array(filtered)
+
         with open(statsPath) as f:
             stats = json.load(f)
 
@@ -73,14 +85,15 @@ class TransitDataset(data.Dataset):
             self.file = h5py.File(self.h5Path, "r")
 
     @property
-    def labelCounts(self) -> dict[str, int]:
-        positive = 0
+    def labelCounts(self) -> list[int]:
+        counts = [0] * numClasses
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                positive += int(f[ticID][obsIdx]["exoplanetLabel"][()]) # type: ignore
+                label = int(f[ticID][obsIdx]["label"][()]) # type: ignore
+                counts[label] += 1
 
-        return {"positive": positive, "negative": len(self.index) - positive}
+        return counts
 
     @property
     def sampleWeights(self) -> list[float]:
@@ -88,10 +101,10 @@ class TransitDataset(data.Dataset):
 
         with h5py.File(self.h5Path, "r") as f:
             for ticID, obsIdx in self.index:
-                labels.append(int(f[ticID][obsIdx]["exoplanetLabel"][()])) # type: ignore
+                labels.append(int(f[ticID][obsIdx]["label"][()])) # type: ignore
 
         counts = self.labelCounts
-        weightByLabel = {1: 1.0 / counts["positive"], 0: 1.0 / counts["negative"]}
+        weightByLabel = {i: 1.0 / max(counts[i], 1) for i in range(numClasses)}
 
         return [weightByLabel[label] for label in labels]
 
@@ -109,7 +122,7 @@ class TransitDataset(data.Dataset):
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
 
-        label = torch.tensor(float(sample["exoplanetLabel"][()]), dtype = torch.float32) # type: ignore
+        label = torch.tensor(int(sample["label"][()]), dtype = torch.long) # type: ignore
 
         if self.augment:
             # add random noise to views only
@@ -166,4 +179,7 @@ if __name__ == "__main__":
     print(f"\nSplits: Train = {len(splits[0])}, Evaluate = {len(splits[1])}, Test = {len(splits[2])}")
 
     counts = dataset.labelCounts
-    print(f"\nLabel distribution: Positive (E) = {counts['positive']}, Negative = {counts['negative']}")
+    print(f"\nLabel distribution:")
+
+    for i, name in enumerate(classNames):
+        print(f"  {name}: {counts[i]}")

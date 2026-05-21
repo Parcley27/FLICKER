@@ -9,12 +9,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import (
-    recall_score, precision_score, average_precision_score,
-    precision_recall_curve, confusion_matrix, f1_score,
+    average_precision_score, precision_recall_curve,
+    confusion_matrix, f1_score, balanced_accuracy_score,
+    classification_report,
 )
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
+from config import classNames
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
@@ -56,18 +58,17 @@ def runInference(model, dataLoader, device) -> tuple[np.ndarray, np.ndarray]:
     logits = torch.cat(logits)
     labels = torch.cat(labels)
 
-    probabilities = torch.sigmoid(logits).numpy()
+    probabilities = torch.softmax(logits, dim = 1).numpy()
     labels = labels.numpy()
 
     return probabilities, labels
 
 def computeMetrics(probabilities, labels, outputDir, tag = None):
-    auPRc = average_precision_score(labels, probabilities)
-    precision = precision_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
-    recall = recall_score(labels, (probabilities >= 0.5).astype(int), zero_division = 0)
+    # probabilities shape: (n_samples, numClasses), labels shape: (n_samples,)
+    predictions = np.argmax(probabilities, axis = 1)
 
-    binaryPredictions = (probabilities >= 0.5).astype(int)
-    f1 = f1_score(labels, binaryPredictions, zero_division = 0)
+    macroF1 = f1_score(labels, predictions, average = "macro", zero_division = 0)
+    balancedAcc = balanced_accuracy_score(labels, predictions)
 
     outputLines = []
 
@@ -79,47 +80,41 @@ def computeMetrics(probabilities, labels, outputDir, tag = None):
     printAndLog(f"Evaluation: {tag}")
     printAndLog(f"Test samples: {len(labels)}")
 
-    positiveCount = int(labels.sum())
-    negativeCount = len(labels) - positiveCount
+    for i, name in enumerate(classNames):
+        printAndLog(f"  {name}: {int((labels == i).sum())}")
 
-    printAndLog(f"  Positive: {positiveCount}  Negative: {negativeCount}")
-    printAndLog(f"\nAUC-PR: {auPRc:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f} | F1: {f1:.4f}")
+    printAndLog(f"\nMacro-F1: {macroF1:.4f} | Balanced Accuracy: {balancedAcc:.4f}")
 
-    # confusion matrix at 0.5
-    cm = confusion_matrix(labels, binaryPredictions)
-    tn, fp, fn, tp = cm.ravel()
+    # per-class metrics
+    report = classification_report(labels, predictions, target_names = classNames, zero_division = 0)
+    printAndLog(f"\n{report}")
 
-    printAndLog(f"\nConfusion Matrix (threshold = 0.5)")
-    printAndLog(f"                 Predicted Neg  Predicted Pos")
-    printAndLog(f"  Actual Neg     {tn:>12}  {fp:>12}")
-    printAndLog(f"  Actual Pos     {fn:>12}  {tp:>12}")
-    printAndLog()
-    printAndLog(f"  TP: {tp}  FP: {fp}  FN: {fn}  TN: {tn}")
+    # confusion matrix
+    cm = confusion_matrix(labels, predictions, labels = list(range(len(classNames))))
 
-    # threshold sweep at 0.05 increments
-    printAndLog(f"\nThreshold | Precision |  Recall  |    F1    |   TP |   FP |   FN |   TN")
-    printAndLog(f"----------+-----------+----------+----------+------+------+------+------")
+    printAndLog("Confusion Matrix (rows = actual, columns = predicted)")
+    header = "        " + "  ".join(f"{name:>5}" for name in classNames)
+    printAndLog(header)
 
-    for threshold in np.arange(0.05, 1.0, 0.05):
-        threshBinary = (probabilities >= threshold).astype(int)
-        threshPrecision = precision_score(labels, threshBinary, zero_division = 0)
-        threshRecall = recall_score(labels, threshBinary, zero_division = 0)
-        threshF1 = f1_score(labels, threshBinary, zero_division = 0)
+    for i, name in enumerate(classNames):
+        row = "  ".join(f"{cm[i, j]:>5}" for j in range(len(classNames)))
+        printAndLog(f"  {name:>4}  {row}")
 
-        threshCm = confusion_matrix(labels, threshBinary, labels = [0, 1])
-        ttn, tfp, tfn, ttp = threshCm.ravel()
+    # exoplanet (E) one-vs-rest PR curve
+    eBinary = (labels == 0).astype(int)
+    eProbs = probabilities[:, 0]
+    eAuPRc = average_precision_score(eBinary, eProbs)
 
-        printAndLog(f"  {threshold:.2f}    |  {threshPrecision:.4f}   | {threshRecall:.4f}   | {threshF1:.4f}   | {ttp:>4} | {tfp:>4} | {tfn:>4} | {ttn:>4}")
+    prPrecision, prRecall, _ = precision_recall_curve(eBinary, eProbs)
 
-    # precision-recall curve
-    prPrecision, prRecall, _ = precision_recall_curve(labels, probabilities)
+    printAndLog(f"\nExoplanet (E) one-vs-rest AUC-PR: {eAuPRc:.4f}")
 
     figure, axis = plt.subplots(figsize = (6, 5))
 
     axis.plot(prRecall, prPrecision, linewidth = 2)
     axis.set_xlabel("Recall")
     axis.set_ylabel("Precision")
-    axis.set_title(f"Precision-Recall Curve (AUC-PR = {auPRc:.4f})")
+    axis.set_title(f"Exoplanet PR Curve (AUC-PR = {eAuPRc:.4f})")
     axis.set_xlim(0, 1)
     axis.set_ylim(0, 1.05)
     axis.grid(True, alpha = 0.3)

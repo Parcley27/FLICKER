@@ -7,7 +7,7 @@ import torch.nn as nn
 repoRoot = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repoRoot))
 
-from config import globalBins, localBins, secondaryBins, halfPeriodBins
+from config import globalBins, localBins, secondaryBins, halfPeriodBins, numClasses
 
 class ConvolutionTower(nn.Module):
     def __init__(self, channelsIn, inputLength, numBlocks = 3):
@@ -42,7 +42,7 @@ class ConvolutionTower(nn.Module):
         return self.layers(x)
 
 class TransitClassifier(nn.Module):
-    def __init__(self, scalarDimension = 12, numLabels = 1, dropout = 0.5):
+    def __init__(self, scalarDimension = 12, numLabels = numClasses, dropout = 0.5):
         super().__init__()
 
         # global view has 4 channels: median, std, transitFlag, hasData
@@ -71,7 +71,7 @@ class TransitClassifier(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            # output layer - single logit for binary E classification
+            # output layer - one logit per class (E, S, B, J, N)
             nn.Linear(64, numLabels),
 
         )
@@ -92,8 +92,7 @@ class TransitClassifier(nn.Module):
 
         output = self.fullyConnected(vector)
 
-        # squeeze from (batch, 1) to (batch,) for BCEWithLogitsLoss
-        return output.squeeze(1)
+        return output
 
 if __name__ == "__main__":
     transitClassifier = TransitClassifier()
@@ -116,5 +115,5 @@ if __name__ == "__main__":
     output = transitClassifier(dummyBatch)
     print(f"Output shape: {output.shape}")
 
-    assert output.shape == torch.Size([4]), f"Expected (4,), got {output.shape}"
+    assert output.shape == torch.Size([4, numClasses]), f"Expected (4, {numClasses}), got {output.shape}"
     print("All checks passed")
