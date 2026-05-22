@@ -122,6 +122,7 @@ class TransitDataset(data.Dataset):
         localView = torch.tensor(sample["localView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
         secondaryView = torch.tensor(sample["secondaryView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
         halfPeriodView = torch.tensor(sample["halfPeriodView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
+        oddEvenView = torch.tensor(sample["oddEvenView"][()].T, dtype = torch.float32).nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0).clamp(-5.0, 5.0)
 
         scalars = sample["scalars"][()]
         scalars = torch.tensor(scalars, dtype = torch.float32)
@@ -134,10 +135,29 @@ class TransitDataset(data.Dataset):
             localView += torch.randn_like(localView) * noiseIntensity
             secondaryView += torch.randn_like(secondaryView) * noiseIntensity
             halfPeriodView += torch.randn_like(halfPeriodView) * noiseIntensity
+            oddEvenView += torch.randn_like(oddEvenView) * noiseIntensity
 
             # add noise to scalars, then re-apply NaN mask so missing values stay at 0
             scalars += torch.randn_like(scalars) * noiseIntensity
             scalars[self.nanMask] = 0.0
+
+            # depth scale jitter: simulates dilution from contaminating stars
+            depthScale = 1.0 + (torch.rand(1).item() - 0.5) * 0.2  # [0.9, 1.1]
+            globalView *= depthScale
+            localView *= depthScale
+            secondaryView *= depthScale
+            halfPeriodView *= depthScale
+            oddEvenView *= depthScale
+
+            # phase jitter: simulates small BLS period estimation errors
+            shift = int((torch.rand(1).item() - 0.5) * 6)  # ±3 bins
+
+            if shift != 0:
+                globalView = torch.roll(globalView, shift, dims = -1)
+                localView = torch.roll(localView, shift, dims = -1)
+                halfPeriodView = torch.roll(halfPeriodView, shift, dims = -1)
+                oddEvenView = torch.roll(oddEvenView, shift, dims = -1)
+                # secondary view not shifted (centered on secondaryPhase, not phase 0)
 
             flip = torch.rand(1) < 0.5
 
@@ -147,12 +167,14 @@ class TransitDataset(data.Dataset):
                 halfPeriodView = torch.flip(halfPeriodView, dims = [-1])
                 # secondary view not flipped because it's centered on secondaryPhase,
                 # not phase 0, so flipping would be physically inconsistent
+                # oddEvenView not flipped: odd/even distinction is orbit-index-based
 
         return {
             "globalView": globalView,
             "localView": localView,
             "secondaryView": secondaryView,
             "halfPeriodView": halfPeriodView,
+            "oddEvenView": oddEvenView,
             "scalars": scalars,
             "label": label,
 

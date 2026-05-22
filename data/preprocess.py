@@ -15,7 +15,7 @@ import wotan
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import globalBins, localBins, secondaryBins, halfPeriodBins
+from config import globalBins, localBins, secondaryBins, halfPeriodBins, oddEvenBins
 
 localTransitDurations = 4
 
@@ -158,24 +158,24 @@ def detrend(times, fluxes, row) -> np.ndarray | None:
 
     return flatFlux
 
-def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray]:
+def phaseFold(times, flatFlux, row) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     period = float(row["Period"])
     epoch = float(row["Epoch"])
 
     # maps each timestamp to 0 ..< 1 based on its position in the expected orbit of the planet
     phases = ((times - epoch) % period) / period
-    
-    # transit goes at the middle rather than the edge, based off of astronet paper display 
+
+    # transit goes at the middle rather than the edge, based off of astronet paper display
     # numpy bool indexing
     phases[phases > 0.5] -= 1.0
-    
+
     # sort phase and flatflux by ascending phase
     sortOrder = np.argsort(phases)
-    phases, flatFlux = phases[sortOrder], flatFlux[sortOrder]
+    phases, flatFlux, times = phases[sortOrder], flatFlux[sortOrder], times[sortOrder]
 
-    return (phases, flatFlux)
+    return (phases, flatFlux, times)
 
-def refineEpoch(phases, flatFlux, row) -> tuple[np.ndarray, np.ndarray, float]:
+def refineEpoch(phases, flatFlux, row, times = None) -> tuple[np.ndarray, np.ndarray, float, np.ndarray | None]:
     duration = float(row["Duration"])
     period = float(row["Period"])
 
@@ -204,7 +204,81 @@ def refineEpoch(phases, flatFlux, row) -> tuple[np.ndarray, np.ndarray, float]:
     sortOrder = np.argsort(phases)
     phases, flatFlux = phases[sortOrder], flatFlux[sortOrder]
 
-    return (phases, flatFlux, observedPhase)
+    if times is not None:
+        times = times[sortOrder]
+
+    return (phases, flatFlux, observedPhase, times)
+
+def buildOddEvenView(phases, flatFlux, times, row):
+    """Bin odd-numbered and even-numbered transit orbits separately into a local-window view.
+
+    Returns shape (oddEvenBins, 4): [odd_median, odd_std, even_median, even_std].
+    For real planets, odd and even halves look identical.
+    For eclipsing binaries, depths differ (primary vs secondary eclipse).
+    For junk, one or both halves will lack a coherent transit.
+    """
+    period = float(row["Period"])
+    epoch = float(row["Epoch"])
+    duration = float(row["Duration"])
+
+    halfWidth = (localTransitDurations / 2) * duration / period
+
+    # assign each data point to its orbit number based on absolute time
+    orbitIndices = np.floor((times - epoch) / period).astype(int)
+
+    oddMask = (orbitIndices % 2 == 1)
+    evenMask = ~oddMask
+
+    binEdges = np.linspace(-halfWidth, halfWidth, oddEvenBins + 1)
+    localMask = np.abs(phases) < halfWidth
+
+    channels = []
+
+    for mask in [oddMask, evenMask]:
+        subsetMask = mask & localMask
+        subsetPhases = phases[subsetMask]
+        subsetFlux = flatFlux[subsetMask]
+
+        binIndices = np.digitize(subsetPhases, binEdges) - 1
+        np.clip(binIndices, 0, oddEvenBins - 1, out = binIndices)
+
+        medians, stds = [], []
+
+        for b in range(oddEvenBins):
+            binFlux = subsetFlux[binIndices == b]
+
+            if len(binFlux) == 0:
+                medians.append(1.0)
+                stds.append(0.0)
+
+            else:
+                medians.append(np.median(binFlux))
+                stds.append(np.std(binFlux))
+
+        channels.append(medians)
+        channels.append(stds)
+
+    oddEvenView = np.column_stack(channels)  # (oddEvenBins, 4)
+
+    # normalise: subtract out-of-transit baseline, scale so minimum = -1
+    binCentres = 0.5 * (binEdges[:-1] + binEdges[1:])
+    transitFlags = np.abs(binCentres) < 0.5 * duration / period
+
+    for ch in [0, 2]:  # odd_median, even_median columns
+        outOfTransit = oddEvenView[~transitFlags, ch]
+        baseline = np.median(outOfTransit) if len(outOfTransit) > 0 else np.median(oddEvenView[:, ch])
+        oddEvenView[:, ch] -= baseline
+
+        scaleFactor = np.min(oddEvenView[:, ch])
+
+        if scaleFactor < 0:
+            scaleFactor = min(scaleFactor, -1e-6)
+            oddEvenView[:, ch] /= -scaleFactor
+            oddEvenView[:, ch + 1] /= -scaleFactor  # scale corresponding std channel
+
+    np.clip(oddEvenView, -5.0, 5.0, out = oddEvenView)
+
+    return oddEvenView
 
 def buildViews(phases, flatFlux, row):
     duration = float(row["Duration"])
@@ -500,11 +574,17 @@ def processCurveEvent(args: tuple) -> dict:
         times = times[validMask]
         flatFlux = flatFlux[validMask]
 
-        phases, flatFlux = phaseFold(times, flatFlux, row)
+        # compute time-domain stats before phase folding reorders times
+        nPoints = np.log1p(len(times))
+        timeBaseline = times[-1] - times[0]
 
-        phases, flatFlux, _ = refineEpoch(phases, flatFlux, row)
+        phases, flatFlux, times = phaseFold(times, flatFlux, row)
+
+        phases, flatFlux, _, times = refineEpoch(phases, flatFlux, row, times)
 
         globalView, globalScaleFactor, localView, localScaleFactor, secondaryView, secondaryScaleFactor, secondaryPhase, halfPeriodView = buildViews(phases, flatFlux, row)
+
+        oddEvenView = buildOddEvenView(phases, flatFlux, times, row)
 
         period = float(row["Period"])
         duration = float(row["Duration"])
@@ -522,8 +602,6 @@ def processCurveEvent(args: tuple) -> dict:
 
         )
 
-        nPoints = np.log1p(len(times))
-        timeBaseline = times[-1] - times[0]
         nFolds = np.log1p(min(np.floor(timeBaseline / period), 100)) / np.log1p(100)
 
         scalars = np.array([
@@ -544,6 +622,7 @@ def processCurveEvent(args: tuple) -> dict:
             "localView": localView.astype(np.float32),
             "secondaryView": secondaryView.astype(np.float32),
             "halfPeriodView": halfPeriodView.astype(np.float32),
+            "oddEvenView": oddEvenView.astype(np.float32),
             "scalars": scalars,
             "label": label,
             "exoplanetLabel": exoplanetLabel,
@@ -673,6 +752,7 @@ def main():
                     group.create_dataset("localView", data = result["localView"])
                     group.create_dataset("secondaryView", data = result["secondaryView"])
                     group.create_dataset("halfPeriodView", data = result["halfPeriodView"])
+                    group.create_dataset("oddEvenView", data = result["oddEvenView"])
                     group.create_dataset("scalars", data = result["scalars"])
                     group.create_dataset("label", data = result["label"])
                     group.create_dataset("exoplanetLabel", data = result["exoplanetLabel"])

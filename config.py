@@ -2,6 +2,7 @@ globalBins = 201
 localBins = 61
 secondaryBins = 61
 halfPeriodBins = 61
+oddEvenBins = 61
 
 numClasses = 4
 classNames = ["E", "S", "B", "J"]
@@ -11,3 +12,7 @@ defaultValInterval = 500
 defaultBatchSize = 64
 defaultWorkers = 8
 defaultLR = 1e-3
+
+# Beta for the F-beta score used as the checkpoint selection and evaluation metric.
+# beta = 2 weights recall twice as much as precision.
+recallBeta = 2.0

@@ -190,6 +190,7 @@ def trainModel(args) -> tuple[dict | None, float | float]:
                 logits = torch.cat(logits)
                 labels = torch.cat(labels)
 
+                logits = logits.nan_to_num(nan = 0.0, posinf = 0.0, neginf = 0.0)
                 softmaxProbs = torch.softmax(logits, dim = 1).numpy()
                 trueLabels = labels.numpy()
 
