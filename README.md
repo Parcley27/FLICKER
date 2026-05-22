@@ -14,7 +14,7 @@ The general plan for the capstone project may be defined in 5 steps: Data acquis
 
 ### Regarding the acronym
 
-FLICKER stands for "Focused Light-curve Inspection and Classification for Keplerian Exoplanet Recognition"  
+FLICKER stands for "Fast Light-curve Inspection and Classification for Keplerian Exoplanet Recognition"  
 Don't judge it, NASA does them too.
 
 ### Claude and friends
