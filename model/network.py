@@ -7,7 +7,7 @@ import torch.nn as nn
 repoRoot = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repoRoot))
 
-from config import globalBins, localBins, secondaryBins, halfPeriodBins, oddEvenBins, numClasses
+from config import globalBins, localBins, secondaryBins, halfPeriodBins, numClasses
 
 class ConvolutionTower(nn.Module):
     def __init__(self, channelsIn, inputLength, numBlocks = 3):
@@ -53,10 +53,7 @@ class TransitClassifier(nn.Module):
         self.secondaryTower = ConvolutionTower(2, secondaryBins, numBlocks = 3)
         self.halfPeriodTower = ConvolutionTower(2, halfPeriodBins, numBlocks = 3)
 
-        # odd/even view has 4 channels: odd_median, odd_std, even_median, even_std
-        self.oddEvenTower = ConvolutionTower(4, oddEvenBins, numBlocks = 3)
-
-        fullyConnectedInput = scalarDimension + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension + self.halfPeriodTower.outputDimension + self.oddEvenTower.outputDimension
+        fullyConnectedInput = scalarDimension + self.globalTower.outputDimension + self.localTower.outputDimension + self.secondaryTower.outputDimension + self.halfPeriodTower.outputDimension
 
         self.fullyConnected = nn.Sequential(
             # input layer
@@ -84,16 +81,14 @@ class TransitClassifier(nn.Module):
         localView = batch["localView"]
         secondaryView = batch["secondaryView"]
         halfPeriodView = batch["halfPeriodView"]
-        oddEvenView = batch["oddEvenView"]
         scalars = batch["scalars"]
 
         globalFeatures = self.globalTower(globalView)
         localFeatures = self.localTower(localView)
         secondaryFeatures = self.secondaryTower(secondaryView)
         halfPeriodFeatures = self.halfPeriodTower(halfPeriodView)
-        oddEvenFeatures = self.oddEvenTower(oddEvenView)
 
-        vector = torch.cat([globalFeatures, localFeatures, secondaryFeatures, halfPeriodFeatures, oddEvenFeatures, scalars], dim = 1)
+        vector = torch.cat([globalFeatures, localFeatures, secondaryFeatures, halfPeriodFeatures, scalars], dim = 1)
 
         output = self.fullyConnected(vector)
 
@@ -106,7 +101,6 @@ if __name__ == "__main__":
     dummyLocalView = torch.zeros(4, 2, localBins)
     dummySecondaryView = torch.zeros(4, 2, secondaryBins)
     dummyHalfPeriodView = torch.zeros(4, 2, halfPeriodBins)
-    dummyOddEvenView = torch.zeros(4, 4, oddEvenBins)
     dummyScalars = torch.zeros(4, 12)
 
     dummyBatch = {
@@ -114,7 +108,6 @@ if __name__ == "__main__":
         "localView": dummyLocalView,
         "secondaryView": dummySecondaryView,
         "halfPeriodView": dummyHalfPeriodView,
-        "oddEvenView": dummyOddEvenView,
         "scalars": dummyScalars,
 
     }
