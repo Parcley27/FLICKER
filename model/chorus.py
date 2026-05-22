@@ -7,7 +7,7 @@ import torch
 from pathlib import Path
 
 from train import trainModel
-from evaluate import runInference, computeMetrics
+from test import runInference, computeMetrics
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
 
@@ -38,7 +38,7 @@ def parseArgs() -> argparse.Namespace:
         help = "Learning rate (default: 1e-4)")
     parser.add_argument("--reset-step", type = int, default = 0,
         help = "Reset optimizer state at this step (0 = disabled)")
-    parser.add_argument("--model-count", type = int, default = 10,
+    parser.add_argument("--model-count", type = int, default = 5,
         help = "Number of models to train (default: 5)")
     parser.add_argument("--seed", type = int, default = 27,
         help = "Random seed (default: 27)")

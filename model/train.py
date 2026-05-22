@@ -6,11 +6,11 @@ import torch
 import torch.nn.functional as F
 
 from pathlib import Path
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, fbeta_score
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
-from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR, numClasses
+from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR, numClasses, recallBeta
 
 repoRoot = Path(__file__).resolve().parent.parent
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
@@ -21,13 +21,24 @@ checkpointPath = repoRoot / "model" / "checkpoints"
 lossThreshold = 10.0
 focalGamma = 2.0
 
+# Extra multiplier applied to any sample where the true label is E (index 0).
+# The focal weight already down-weights correctly-classified E's (high p_true),
+# so in practice this boost concentrates on misclassified E's — i.e. false negatives.
+# Raise this to trade precision for recall on E; 1.0 disables it.
+eRecallBoost = 2.0
+
+
 def focalLoss(logits, targets, classWeights, gamma = focalGamma):
     perSampleLoss = F.cross_entropy(logits, targets, weight = classWeights, reduction = "none")
     probs = torch.softmax(logits, dim = 1)
     trueClassProbs = probs.gather(1, targets.unsqueeze(1)).squeeze(1)
     focalWeight = (1 - trueClassProbs) ** gamma
-    
-    return (focalWeight * perSampleLoss).mean()
+
+    # Boost loss for true-E samples to penalise false negatives more heavily.
+    # torch.where keeps the graph differentiable (no hard mask on correctness).
+    recallWeight = torch.where(targets == 0, torch.full_like(focalWeight, eRecallBoost), torch.ones_like(focalWeight))
+
+    return (focalWeight * perSampleLoss * recallWeight).mean()
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train the TransitClassifier model")
@@ -184,11 +195,14 @@ def trainModel(args) -> tuple[dict | None, float | float]:
 
                 eAuPRc = average_precision_score((trueLabels == 0).astype(int), softmaxProbs[:, 0])
 
-                if eAuPRc > bestScore:
-                    bestScore = eAuPRc
+                preds = softmaxProbs.argmax(axis = 1)
+                eF2 = fbeta_score((trueLabels == 0).astype(int), (preds == 0).astype(int), beta = recallBeta, zero_division = 0)
+
+                if eF2 > bestScore:
+                    bestScore = eF2
                     bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
-                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | Best {bestScore:.4f} | LR {optimizer.param_groups[0]['lr']:.1e}"
+                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | E F{recallBeta:.0f} {eF2:.4f} | Best {bestScore:.4f} | LR {optimizer.param_groups[0]['lr']:.1e}"
 
                 if intervalBatchesSkipped > 0:
                     summary += f" | {intervalBatchesSkipped} batch(es) skipped"
