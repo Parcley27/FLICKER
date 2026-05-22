@@ -14,5 +14,5 @@ defaultWorkers = 8
 defaultLR = 1e-3
 
 # Beta for the F-beta score used as the checkpoint selection and evaluation metric.
-# beta = 1 weights recall and precision equally.
-recallBeta = 1.0
+# beta = 2 weights recall twice as much as precision.
+recallBeta = 2.0
