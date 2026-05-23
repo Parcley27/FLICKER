@@ -40,6 +40,12 @@ def parseArgs() -> argparse.Namespace:
         help = "Batch size (default: 64)")
     parser.add_argument("--workers", type = int, default = 4,
         help = "DataLoader worker count (default: 4)")
+    parser.add_argument("--e-threshold", type = float, default = None,
+        help = "Probability threshold for predicting E (default: use argmax). "
+               "Lower values increase recall at the cost of precision. "
+               "Pass --e-threshold auto to find the threshold that maximises F2 while achieving >=90%% recall.")
+    parser.add_argument("--find-threshold", action = "store_true",
+        help = "Scan thresholds and report recall/precision at each; useful for picking --e-threshold.")
 
     return parser.parse_args()
 
@@ -64,9 +70,62 @@ def runInference(model, dataLoader, device) -> tuple[np.ndarray, np.ndarray]:
 
     return probabilities, labels
 
-def computeMetrics(probabilities, labels, outputDir, tag = None):
+def findEThreshold(probabilities, labels, targetRecall = 0.90):
+    """Scan E thresholds and return the one that maximises F2 at or above targetRecall."""
+    eBinary = (labels == 0).astype(int)
+    eProbs = probabilities[:, 0]
+
+    thresholds = np.linspace(0.01, 0.99, 99)
+    bestThresh = None
+    bestF2 = -1.0
+
+    print(f"\nThreshold scan (target recall >= {targetRecall:.0%}):")
+    print(f"  {'thresh':>6}  {'recall':>6}  {'prec':>6}  {'F2':>6}")
+
+    for t in thresholds:
+        ePreds = (eProbs >= t).astype(int)
+        tp = int((ePreds & eBinary).sum())
+        fp = int((ePreds & (1 - eBinary)).sum())
+        fn = int(((1 - ePreds) & eBinary).sum())
+
+        recall = tp / max(tp + fn, 1)
+        prec   = tp / max(tp + fp, 1)
+        f2     = (5 * prec * recall) / max(5 * prec + recall, 1e-9)
+
+        if recall >= targetRecall and f2 > bestF2:
+            bestF2 = f2
+            bestThresh = t
+
+    # print a summary table around the target recall
+    for t in thresholds:
+        ePreds = (eProbs >= t).astype(int)
+        tp = int((ePreds & eBinary).sum())
+        fp = int((ePreds & (1 - eBinary)).sum())
+        fn = int(((1 - ePreds) & eBinary).sum())
+        recall = tp / max(tp + fn, 1)
+        prec   = tp / max(tp + fp, 1)
+        f2     = (5 * prec * recall) / max(5 * prec + recall, 1e-9)
+
+        if 0.80 <= recall <= 0.97:
+            marker = " <-- best" if t == bestThresh else ""
+            print(f"  {t:6.2f}  {recall:6.3f}  {prec:6.3f}  {f2:6.3f}{marker}")
+
+    if bestThresh is not None:
+        print(f"\nBest threshold for recall>={targetRecall:.0%}: {bestThresh:.2f}  (F2={bestF2:.4f})")
+    else:
+        print(f"\nNo threshold achieves recall >= {targetRecall:.0%}")
+
+    return bestThresh
+
+def computeMetrics(probabilities, labels, outputDir, tag = None, eThreshold = None):
     # probabilities shape: (n_samples, numClasses), labels shape: (n_samples,)
-    predictions = np.argmax(probabilities, axis = 1)
+    if eThreshold is not None:
+        # Predict E when P(E) >= eThreshold, else fall back to argmax of all classes.
+        eProbs = probabilities[:, 0]
+        argmaxPreds = np.argmax(probabilities, axis = 1)
+        predictions = np.where(eProbs >= eThreshold, 0, argmaxPreds)
+    else:
+        predictions = np.argmax(probabilities, axis = 1)
 
     macroF1 = f1_score(labels, predictions, average = "macro", zero_division = 0)
     balancedAcc = balanced_accuracy_score(labels, predictions)
@@ -111,6 +170,19 @@ def computeMetrics(probabilities, labels, outputDir, tag = None):
 
     printAndLog(f"\nExoplanet (E) one-vs-rest AUC-PR: {eAuPRc:.4f}")
     printAndLog(f"Exoplanet (E) F{recallBeta:.0f} score:        {eF2:.4f}")
+
+    # recall / precision table at fixed E thresholds
+    printAndLog(f"\nE recall at fixed thresholds:")
+    printAndLog(f"  {'thresh':>6}  {'recall':>6}  {'prec':>6}  {'caught':>6}  {'missed':>6}")
+    nE = int(eBinary.sum())
+    for t in np.arange(0.05, 0.96, 0.05):
+        ePreds = (eProbs >= t).astype(int)
+        tp = int((ePreds & eBinary).sum())
+        fp = int((ePreds & (1 - eBinary)).sum())
+        fn = int(((1 - ePreds) & eBinary).sum())
+        rec  = tp / max(tp + fn, 1)
+        prec = tp / max(tp + fp, 1)
+        printAndLog(f"  {t:6.2f}  {rec:6.3f}  {prec:6.3f}  {tp:6d}  {fn:6d}")
 
     figure, axis = plt.subplots(figsize = (6, 5))
 
@@ -188,7 +260,15 @@ def main():
     timestampMatch = re.search(r"\d{8}_\d{6}", checkpoint.stem)
     tag = timestampMatch.group() if timestampMatch else "unknown"
 
-    computeMetrics(probabilities, labels, resultsPath, tag)
+    eThreshold = None
+
+    if args.find_threshold or args.e_threshold is not None:
+        eThreshold = findEThreshold(probabilities, labels)
+
+        if args.e_threshold is not None and args.e_threshold != "auto":
+            eThreshold = float(args.e_threshold)
+
+    computeMetrics(probabilities, labels, resultsPath, tag, eThreshold = eThreshold)
 
     
 

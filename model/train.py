@@ -25,7 +25,7 @@ focalGamma = 2.0
 # The focal weight already down-weights correctly-classified E's (high p_true),
 # so in practice this boost concentrates on misclassified E's — i.e. false negatives.
 # Raise this to trade precision for recall on E; 1.0 disables it.
-eRecallBoost = 2.0
+eRecallBoost = 4.0
 
 
 def focalLoss(logits, targets, classWeights, gamma = focalGamma):
@@ -203,12 +203,12 @@ def trainModel(args) -> tuple[dict | None, float | float]:
                     bestScore = eF2
                     bestStateDict = {name: tensor.cpu().clone() for name, tensor in model.state_dict().items()}
 
-                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | E F{recallBeta:.0f} {eF2:.4f} | Best {bestScore:.4f} | LR {optimizer.param_groups[0]['lr']:.1e}"
+                summary = f"Step {step}: Training loss {avgTrainingLoss:.4f} | Validation loss {validationLoss:.4f} | E AUC-PR {eAuPRc:.4f} | E F{recallBeta:.0f} {eF2:.4f} | Best F{recallBeta:.0f} {bestScore:.4f} | LR {optimizer.param_groups[0]['lr']:.1e}"
 
                 if intervalBatchesSkipped > 0:
                     summary += f" | {intervalBatchesSkipped} batch(es) skipped"
 
-                print(summary)
+                print(summary, flush = True)
 
                 # reset interval accumulators and return to training mode
                 intervalLoss = 0.0
@@ -227,7 +227,7 @@ def main():
     if bestStateDict is not None:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         torch.save(bestStateDict, checkpointPath / f"best_{timestamp}.pt")
-        print(f"Saved best model (Macro-F1 {bestScore:.4f}) to checkpoints/best_{timestamp}.pt")
+        print(f"Saved best model (E F{recallBeta:.0f} {bestScore:.4f}) to checkpoints/best_{timestamp}.pt")
         
     else:
         print("No valid model was found during training.")
