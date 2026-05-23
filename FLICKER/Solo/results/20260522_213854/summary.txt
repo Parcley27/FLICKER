@@ -1,0 +1,42 @@
+FLICKER Solo predictions
+Generated:   2026-05-22T21:38:54
+Checkpoint:  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Solo\best.pt
+Input:       data\processed
+Device:      cuda
+Threshold:   0.29
+TCE count:   24496
+File count:  1
+
+Predicted class distribution:
+  E:   4686  ( 19.1%)
+  S:    404  (  1.6%)
+  B:   2651  ( 10.8%)
+  J:  16755  ( 68.4%)
+
+E predictions forced by threshold (P_E >= 0.29, argmax != E): 1229
+
+Top 20 highest-P(E) TCEs:
+  rank      P_E  pred  ticID           obsIdx    sourceFile
+     1   0.9894     E  236973844       0         dataset.h5
+     2   0.9885     E  117397619       0         dataset.h5
+     3   0.9876     E  468792279       0         dataset.h5
+     4   0.9874     E  391752891       0         dataset.h5
+     5   0.9873     E  277590781       0         dataset.h5
+     6   0.9870     E  164054301       0         dataset.h5
+     7   0.9870     E  367366318       0         dataset.h5
+     8   0.9866     E  286703464       0         dataset.h5
+     9   0.9866     E  318230704       0         dataset.h5
+    10   0.9865     E  354388980       0         dataset.h5
+    11   0.9864     E  1883511917      0         dataset.h5
+    12   0.9863     E  428767557       0         dataset.h5
+    13   0.9862     E  160708862       0         dataset.h5
+    14   0.9860     E  69679391        0         dataset.h5
+    15   0.9858     E  427761355       0         dataset.h5
+    16   0.9856     E  397346303       0         dataset.h5
+    17   0.9855     E  286923464       0         dataset.h5
+    18   0.9852     E  245502040       0         dataset.h5
+    19   0.9850     E  390434208       0         dataset.h5
+    20   0.9849     E  135085261       0         dataset.h5
+
+Per-source-file TCE counts:
+   24496  dataset.h5

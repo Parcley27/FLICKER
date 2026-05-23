@@ -1,0 +1,13 @@
+method,threshold,class,support,actualPredE,actualPredS,actualPredB,actualPredJ
+solo,0.29,E,244,223,1,11,9
+solo,0.29,S,33,16,6,1,10
+solo,0.29,B,140,9,0,122,9
+solo,0.29,J,2014,223,33,129,1629
+baritone,0.29,E,244,227,1,5,11
+baritone,0.29,S,33,18,4,1,10
+baritone,0.29,B,140,11,0,119,10
+baritone,0.29,J,2014,182,18,113,1701
+soprano,0.29,E,244,232,0,4,8
+soprano,0.29,S,33,23,2,1,7
+soprano,0.29,B,140,19,0,111,10
+soprano,0.29,J,2014,350,10,99,1555
