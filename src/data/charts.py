@@ -87,6 +87,7 @@ def generateChart(ticID, predictedLabel = None):
         localView = group["localView"][:]
         secondaryView = group["secondaryView"][:]
         halfPeriodView = group["halfPeriodView"][:]
+        oddEvenView = group["oddEvenView"][:]
         scalars = group["scalars"][:]
         label = int(group["label"][()])
         exoplanetLabel = int(group["exoplanetLabel"][()])
@@ -104,11 +105,14 @@ def generateChart(ticID, predictedLabel = None):
     secondaryPhases = np.linspace(secondaryPhase - halfWidth, secondaryPhase + halfWidth, 61)
     halfPeriodHalfWidth = 2 * duration / (period / 2)
     halfPeriodPhases = np.linspace(-halfPeriodHalfWidth, halfPeriodHalfWidth, 61)
+    oddEvenPhases = np.linspace(-halfWidth, halfWidth, 61)
 
     # colours
     plotColour = "#4a90d9"
     stdColour = "#4a90d9"
     transitColour = "#d94a4a"
+    oddColour = "#d97b4a"
+    evenColour = "#4ad9a5"
 
     fig = plt.figure(figsize = (14, 16), facecolor = "#FFFFFF")
 
@@ -230,8 +234,10 @@ def generateChart(ticID, predictedLabel = None):
     secondaryAx.set_title("Secondary View (61 bins)", fontsize = 10, fontweight = "bold", loc = "left")
     secondaryAx.tick_params(labelsize = 8)
 
-    # bottom row: half-period view
-    halfPeriodAx = fig.add_subplot(plotOuter[2])
+    # bottom row: half-period and odd/even side by side
+    bottomInner = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec = plotOuter[2], wspace = 0.25)
+
+    halfPeriodAx = fig.add_subplot(bottomInner[0])
 
     halfPeriodMedian = halfPeriodView[:, 0]
     halfPeriodStd = np.clip(halfPeriodView[:, 1], 0, 0.5)
@@ -245,8 +251,30 @@ def generateChart(ticID, predictedLabel = None):
     halfPeriodAx.set_title("Half-Period View (61 bins)", fontsize = 10, fontweight = "bold", loc = "left")
     halfPeriodAx.tick_params(labelsize = 8)
 
+    # odd/even view
+    oddEvenAx = fig.add_subplot(bottomInner[1])
+
+    oddMedian = oddEvenView[:, 0]
+    oddStd = np.clip(oddEvenView[:, 1], 0, 0.5)
+    evenMedian = oddEvenView[:, 2]
+    evenStd = np.clip(oddEvenView[:, 3], 0, 0.5)
+
+    oddEvenAx.fill_between(oddEvenPhases, oddMedian - oddStd, oddMedian + oddStd,
+                           alpha = 0.12, color = oddColour, linewidth = 0)
+    oddEvenAx.plot(oddEvenPhases, oddMedian, color = oddColour, linewidth = 2.2, label = "Odd")
+
+    oddEvenAx.fill_between(oddEvenPhases, evenMedian - evenStd, evenMedian + evenStd,
+                           alpha = 0.12, color = evenColour, linewidth = 0)
+    oddEvenAx.plot(oddEvenPhases, evenMedian, color = evenColour, linewidth = 2.2, label = "Even")
+
+    oddEvenAx.legend(fontsize = 8, loc = "upper right")
+    oddEvenAx.set_xlabel("Orbital Phase", fontsize = 9)
+    oddEvenAx.set_ylabel("Normalised Flux", fontsize = 9)
+    oddEvenAx.set_title("Odd/Even View (61 bins)", fontsize = 10, fontweight = "bold", loc = "left")
+    oddEvenAx.tick_params(labelsize = 8)
+
     # style all axes
-    for ax in [globalAx, localAx, secondaryAx, halfPeriodAx]:
+    for ax in [globalAx, localAx, secondaryAx, halfPeriodAx, oddEvenAx]:
         ax.set_facecolor("#ffffff")
         ax.grid(True, alpha = 0.2, linewidth = 0.5)
 
