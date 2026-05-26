@@ -1,3 +1,5 @@
+# written with Claude Code
+
 import argparse
 import csv
 import datetime
@@ -26,7 +28,7 @@ from config import classNames, recallBeta
 defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
 defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 defaultSoloCheckpoint = repoRoot / "model" / "checkpoints" / "best_20260522_123141.pt"
-defaultChoirDir = repoRoot / "model" / "runs" / "20260522_024151"
+defaultChoirDir = repoRoot / "model" / "runs" / "20260522_205646"
 defaultOutputRoot = repoRoot / "model" / "evaluation" / "results"
 
 # Thresholds called out explicitly in the paper.

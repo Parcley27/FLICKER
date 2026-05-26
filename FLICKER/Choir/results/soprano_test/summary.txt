@@ -1,0 +1,49 @@
+FLICKER Choir predictions (Soprano)
+Generated:   2026-05-23T01:24:30
+Mode:        Soprano
+Choir dir:   C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Choir\models  (10/10 models)
+Input:       data\processed
+Device:      cuda
+Threshold:   0.29
+TCE count:   24496
+File count:  1
+
+Predicted class distribution:
+  E:   7161  ( 29.2%)
+  S:    166  (  0.7%)
+  B:   2398  (  9.8%)
+  J:  14771  ( 60.3%)
+
+Soprano votes (any model P_E >= 0.29): 7161
+  usedThreshold=true  -> soprano vote fired; prediction is E
+  usedThreshold=false -> no model voted E; fallback to Baritone argmax
+
+Note: P_E in the CSV is the mean P_E across all models.
+      maxP_E is the decision variable (max P_E across models).
+      The soprano threshold is applied to maxP_E, not to P_E.
+
+Top 20 highest-maxP_E TCEs:
+  rank      P_E   maxP_E  pred  ticID           obsIdx    sourceFile
+     1   0.9902   0.9947     E  277590781       0         dataset.h5
+     2   0.9909   0.9944     E  391752891       0         dataset.h5
+     3   0.9883   0.9940     E  117397619       0         dataset.h5
+     4   0.9866   0.9932     E  143458736       0         dataset.h5
+     5   0.9908   0.9931     E  236973844       0         dataset.h5
+     6   0.9879   0.9927     E  311070085       0         dataset.h5
+     7   0.9844   0.9925     E  198242676       0         dataset.h5
+     8   0.9875   0.9924     E  284595199       0         dataset.h5
+     9   0.9876   0.9923     E  198242678       0         dataset.h5
+    10   0.9892   0.9923     E  309434301       0         dataset.h5
+    11   0.9890   0.9922     E  164054301       0         dataset.h5
+    12   0.9868   0.9921     E  397346303       0         dataset.h5
+    13   0.9887   0.9921     E  270204401       0         dataset.h5
+    14   0.9872   0.9921     E  312230566       0         dataset.h5
+    15   0.9869   0.9920     E  279449126       0         dataset.h5
+    16   0.9882   0.9919     E  63916460        0         dataset.h5
+    17   0.9884   0.9919     E  347841053       0         dataset.h5
+    18   0.9870   0.9918     E  120414806       0         dataset.h5
+    19   0.9867   0.9917     E  254045302       0         dataset.h5
+    20   0.9885   0.9916     E  427761355       0         dataset.h5
+
+Per-source-file TCE counts:
+   24496  dataset.h5

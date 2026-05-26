@@ -1,0 +1,122 @@
+FLICKER evaluation summary
+Generated: 2026-05-23T01:11:12
+Test samples: 2431
+Class distribution: E=244  S=33  B=140  J=2014
+
+Solo checkpoint: C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\checkpoints\best_20260522_123141.pt
+Choir directory: C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\runs\20260522_205646  (10/10 models)
+  - model_0.pt
+  - model_1.pt
+  - model_2.pt
+  - model_3.pt
+  - model_4.pt
+  - model_5.pt
+  - model_6.pt
+  - model_7.pt
+  - model_8.pt
+  - model_9.pt
+
+========================================================================
+Headline (threshold = 0.29)
+========================================================================
+  method      precision   recall       F2   missRate   AUC-PR
+  solo           0.4735   0.9139   0.7706     0.0861   0.8777
+  baritone       0.4860   0.9221   0.7818     0.0779   0.8914
+  soprano        0.3269   0.9713   0.6966     0.0287   0.8918
+
+Headline counts (E vs rest):
+  method        TP    FP    FN    TN
+  solo         223   248    21  1939
+  baritone     225   238    19  1949
+  soprano      237   488     7  1699
+
+========================================================================
+Per-threshold breakdown (precision / recall / F2 on E)
+========================================================================
+
+  Threshold = 0.0105
+    method      precision   recall       F2   missRate
+    solo           0.1467   0.9959   0.4615     0.0041
+    baritone       0.1262   0.9959   0.4187     0.0041
+    soprano        0.1125   1.0000   0.3880     0.0000
+
+  Threshold = 0.215
+    method      precision   recall       F2   missRate
+    solo           0.3986   0.9344   0.7364     0.0656
+    baritone       0.3854   0.9508   0.7351     0.0492
+    soprano        0.2728   0.9795   0.6452     0.0205
+
+  Threshold = 0.29
+    method      precision   recall       F2   missRate
+    solo           0.4735   0.9139   0.7706     0.0861
+    baritone       0.4860   0.9221   0.7818     0.0779
+    soprano        0.3269   0.9713   0.6966     0.0287
+
+========================================================================
+AUC-PR (E one-vs-rest)
+========================================================================
+  solo       0.8777
+  baritone   0.8914
+  soprano    0.8918
+
+========================================================================
+Confusion matrices @ threshold = 0.29
+========================================================================
+
+Solo - counts (rows = actual, columns = predicted)
+               E        S        B        J
+     E       223        1       11        9
+     S        16        6        1       10
+     B         9        0      122        9
+     J       223       33      129     1629
+
+Solo - row percentages
+               E        S        B        J
+     E      91.4      0.4      4.5      3.7
+     S      48.5     18.2      3.0     30.3
+     B       6.4      0.0     87.1      6.4
+     J      11.1      1.6      6.4     80.9
+
+Baritone - counts (rows = actual, columns = predicted)
+               E        S        B        J
+     E       225        1       11        7
+     S        19        4        1        9
+     B        11        0      122        7
+     J       208       24      121     1661
+
+Baritone - row percentages
+               E        S        B        J
+     E      92.2      0.4      4.5      2.9
+     S      57.6     12.1      3.0     27.3
+     B       7.9      0.0     87.1      5.0
+     J      10.3      1.2      6.0     82.5
+
+Soprano - counts (rows = actual, columns = predicted)
+               E        S        B        J
+     E       237        0        4        3
+     S        25        1        1        6
+     B        19        0      114        7
+     J       444       17      107     1446
+
+Soprano - row percentages
+               E        S        B        J
+     E      97.1      0.0      1.6      1.2
+     S      75.8      3.0      3.0     18.2
+     B      13.6      0.0     81.4      5.0
+     J      22.0      0.8      5.3     71.8
+
+Outputs:
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\summary.txt
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\threshold_sweep.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\headline_metrics.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\per_class.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\miss_rate_vs_threshold.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\pr_curve_solo.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_solo_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_solo_pct.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\pr_curve_baritone.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_baritone_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_baritone_pct.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\pr_curve_soprano.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_soprano_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\model\evaluation\results\20260523_011048\confusion_soprano_pct.png

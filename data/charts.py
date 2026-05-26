@@ -39,7 +39,7 @@ def loadTceRow(ticID):
 
 def denormalizeScalars(scalars):
     if not scalarStatsPath.exists():
-        # no stats file means normalisation was skipped — scalars are already raw
+        # no stats file means normalisation was skipped - scalars are already raw
         return scalars.copy()
 
     with open(scalarStatsPath, "r") as f:

@@ -22,11 +22,8 @@ lossThreshold = 10.0
 focalGamma = 2.0
 
 # Extra multiplier applied to any sample where the true label is E (index 0).
-# The focal weight already down-weights correctly-classified E's (high p_true),
-# so in practice this boost concentrates on misclassified E's — i.e. false negatives.
 # Raise this to trade precision for recall on E; 1.0 disables it.
 eRecallBoost = 4.0
-
 
 def focalLoss(logits, targets, classWeights, gamma = focalGamma):
     perSampleLoss = F.cross_entropy(logits, targets, weight = classWeights, reduction = "none")

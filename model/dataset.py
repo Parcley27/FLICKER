@@ -17,7 +17,7 @@ defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
 noiseIntensity = 0.01
 
 def remapLabel(rawLabel):
-    """Merge N (4) into J (3) — both mean 'not a planet candidate'."""
+    # merge n into j because both are useless
     return 3 if rawLabel == 4 else rawLabel
 
 # uses the pre-assigned split attribute from the HDF5 file 
