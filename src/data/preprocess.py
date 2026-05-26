@@ -13,7 +13,7 @@ import time
 import warnings
 import wotan
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from config import globalBins, localBins, secondaryBins, halfPeriodBins, oddEvenBins
 
@@ -23,9 +23,9 @@ detrendWindow = 0.5
 
 bitmaskQuality = "default"
 
-repoRoot = Path(__file__).resolve().parent.parent
-rawDir = repoRoot / "data" / "raw"
-processedDir = repoRoot / "data" / "processed"
+repoRoot = Path(__file__).resolve().parents[2]
+rawDir = repoRoot / "src" / "data" / "raw"
+processedDir = repoRoot / "src" / "data" / "processed"
 
 lightcurveDir = rawDir / "lightcurves"
 tceTable = rawDir / "tce_table.csv"

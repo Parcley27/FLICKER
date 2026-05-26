@@ -19,12 +19,12 @@ from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
 from config import classNames, recallBeta
 
-repoRoot = Path(__file__).resolve().parent.parent
-defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
-defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
+repoRoot = Path(__file__).resolve().parents[2]
+defaultDataPath = repoRoot / "src" / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "src" / "data" / "processed" / "scalar_stats.json"
 
-checkpointPath = repoRoot / "model" / "checkpoints"
-resultsPath = repoRoot / "model" / "results"
+checkpointPath = repoRoot / "src" / "model" / "checkpoints"
+resultsPath = repoRoot / "src" / "model" / "results"
 
 
 def parseArgs() -> argparse.Namespace:

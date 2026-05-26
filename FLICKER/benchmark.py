@@ -12,7 +12,7 @@ repoRoot = scriptDir.parent
 soloCheckpoint = scriptDir / "Solo" / "best.pt"
 choirDir = scriptDir / "Choir" / "models"
 benchmarksRoot = scriptDir / "Benchmarks"
-evaluatePy = repoRoot / "model" / "evaluation" / "evaluate.py"
+evaluatePy = repoRoot / "src" / "model" / "evaluation" / "evaluate.py"
 
 expectedChoirSize = 10
 

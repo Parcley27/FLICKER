@@ -12,11 +12,11 @@ from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
 from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR, numClasses, recallBeta
 
-repoRoot = Path(__file__).resolve().parent.parent
-defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
-defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
+repoRoot = Path(__file__).resolve().parents[2]
+defaultDataPath = repoRoot / "src" / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "src" / "data" / "processed" / "scalar_stats.json"
 
-checkpointPath = repoRoot / "model" / "checkpoints"
+checkpointPath = repoRoot / "src" / "model" / "checkpoints"
 
 lossThreshold = 10.0
 focalGamma = 2.0

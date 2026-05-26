@@ -13,11 +13,11 @@ from dataset import TransitDataset, makeSplits
 
 from config import defaultSteps, defaultValInterval, defaultBatchSize, defaultWorkers, defaultLR
 
-repoRoot = Path(__file__).resolve().parent.parent
-defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
-defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
+repoRoot = Path(__file__).resolve().parents[2]
+defaultDataPath = repoRoot / "src" / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "src" / "data" / "processed" / "scalar_stats.json"
 
-runsPath = repoRoot / "model" / "runs"
+runsPath = repoRoot / "src" / "model" / "runs"
 
 def parseArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description = "Train and compare multiple models")

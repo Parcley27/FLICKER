@@ -1,13 +1,13 @@
 __pycache__/
 
-/data/raw/lightcurves/*
-/data/raw/fetch_log.csv
+/src/data/raw/lightcurves/*
+/src/data/raw/fetch_log.csv
 
-/data/processed/*
+/src/data/processed/*
 
-/data/renders
+/src/data/renders/
 
-practice/data/
+/src/practice/data/
 
 /playgrounds/
 

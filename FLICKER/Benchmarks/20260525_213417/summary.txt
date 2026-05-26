@@ -1,5 +1,5 @@
 FLICKER evaluation summary
-Generated: 2026-05-25T20:46:06
+Generated: 2026-05-25T21:34:36
 Test samples: 2431
 Class distribution: E=244  S=33  B=140  J=2014
 
@@ -106,17 +106,17 @@ Soprano - row percentages
      J      22.0      0.8      5.3     71.8
 
 Outputs:
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\summary.txt
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\threshold_sweep.csv
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\headline_metrics.csv
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\per_class.csv
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\miss_rate_vs_threshold.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\pr_curve_solo.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_solo_raw.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_solo_pct.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\pr_curve_baritone.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_baritone_raw.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_baritone_pct.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\pr_curve_soprano.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_soprano_raw.png
-  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_204536\confusion_soprano_pct.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\summary.txt
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\threshold_sweep.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\headline_metrics.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\per_class.csv
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\miss_rate_vs_threshold.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\pr_curve_solo.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_solo_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_solo_pct.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\pr_curve_baritone.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_baritone_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_baritone_pct.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\pr_curve_soprano.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_soprano_raw.png
+  C:\Users\Pierce Oxley\Documents\Coding\exoplanets\FLICKER\Benchmarks\20260525_213417\confusion_soprano_pct.png

@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-repoRoot = Path(__file__).resolve().parent.parent
+repoRoot = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repoRoot))
 
 from config import globalBins, localBins, secondaryBins, halfPeriodBins, oddEvenBins, numClasses

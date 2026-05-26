@@ -18,18 +18,18 @@ from sklearn.metrics import (
     precision_recall_curve,
 )
 
-repoRoot = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(repoRoot / "model"))
+repoRoot = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(repoRoot / "src" / "model"))
 
 from network import TransitClassifier
 from dataset import TransitDataset, makeSplits
 from config import classNames, recallBeta
 
-defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
-defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
-defaultSoloCheckpoint = repoRoot / "model" / "checkpoints" / "best_20260522_123141.pt"
-defaultChoirDir = repoRoot / "model" / "runs" / "20260522_205646"
-defaultOutputRoot = repoRoot / "model" / "evaluation" / "results"
+defaultDataPath = repoRoot / "src" / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "src" / "data" / "processed" / "scalar_stats.json"
+defaultSoloCheckpoint = repoRoot / "src" / "model" / "checkpoints" / "best_20260522_123141.pt"
+defaultChoirDir = repoRoot / "src" / "model" / "runs" / "20260522_205646"
+defaultOutputRoot = repoRoot / "src" / "model" / "evaluation" / "results"
 
 # Thresholds called out explicitly in the paper.
 keyThresholds = [0.0105, 0.215, 0.29]

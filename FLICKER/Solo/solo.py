@@ -10,7 +10,7 @@ import torch
 
 scriptDir = Path(__file__).resolve().parent
 repoRoot = scriptDir.parents[1]
-sys.path.insert(0, str(repoRoot / "model"))
+sys.path.insert(0, str(repoRoot / "src" / "model"))
 
 from network import TransitClassifier
 from config import classNames

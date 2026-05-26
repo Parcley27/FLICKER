@@ -27,8 +27,8 @@ try:
 except ImportError:
     lk = None
 
-repoRoot = Path(__file__).resolve().parent.parent
-rawDir = repoRoot / "data" / "raw"
+repoRoot = Path(__file__).resolve().parents[2]
+rawDir = repoRoot / "src" / "data" / "raw"
 lightcurveDir = rawDir / "lightcurves"
 csvDestination = rawDir / "tce_table.csv"
 logPath = rawDir / "fetch_log.csv"

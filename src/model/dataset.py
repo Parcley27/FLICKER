@@ -10,9 +10,9 @@ from pathlib import Path
 
 from config import numClasses, classNames
 
-repoRoot = Path(__file__).resolve().parent.parent
-defaultDataPath = repoRoot / "data" / "processed" / "dataset.h5"
-defaultScalarsPath = repoRoot / "data" / "processed" / "scalar_stats.json"
+repoRoot = Path(__file__).resolve().parents[2]
+defaultDataPath = repoRoot / "src" / "data" / "processed" / "dataset.h5"
+defaultScalarsPath = repoRoot / "src" / "data" / "processed" / "scalar_stats.json"
 
 noiseIntensity = 0.01
 

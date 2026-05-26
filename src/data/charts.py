@@ -10,15 +10,15 @@ import pandas as pd
 from pathlib import Path
 
 
-repoRoot = Path(__file__).resolve().parent.parent
-processedDir = repoRoot / "data" / "processed"
-rawDir = repoRoot / "data" / "raw"
+repoRoot = Path(__file__).resolve().parents[2]
+processedDir = repoRoot / "src" / "data" / "processed"
+rawDir = repoRoot / "src" / "data" / "raw"
 
 datasetPath = processedDir / "dataset.h5"
 scalarStatsPath = processedDir / "scalar_stats.json"
 tceTablePath = rawDir / "tce_table.csv"
 
-renderDir = repoRoot / "data" / "renders"
+renderDir = repoRoot / "src" / "data" / "renders"
 
 labelNames = {0: "Exoplanet", 1: "Single Transit", 2: "Binary", 3: "Junk", 4: "Uncertain", -1: "Unlabeled"}
 labelShort = {0: "E", 1: "S", 2: "B", 3: "J", 4: "N", -1: "?"}
