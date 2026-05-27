@@ -141,7 +141,7 @@ Observing, we notice a consistent, flat light curve except for the transit event
 
 Our model uses a convolutional neural network architecture derived from \[6\] Astronet-Triage-v2. The model is comprised of two stages: First, a set of parallel convolutional towers processes each view independently. Second, a fully connected network combines its outputs with the scalars to provide a final classification. 
 
-![][image4]  
+![Figure 5: High level network design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_design.png)  
 
 *Figure 5: High-level network design.*
 
@@ -149,13 +149,13 @@ Our model uses a convolutional neural network architecture derived from \[6\] As
 
 Each of the 5 views is processed by its own convolutional tower, where each tower consists of three blocks. Each block applies a 1D convolution with a kernel width of 5, followed by batch normalization, a ReLU activation, and a max pooling factor of 2\. The three blocks use 16, 32, and 64 filters, respectively, so each successive block captures increasingly abstract patterns over a wider range of the input. To match the data input as described in Section 3, the global view and even/odd towers fill 4 input channels, while the local, secondary, and half-phase views each take 2 channels. The output of each tower is flattened into a 1D vector, and all 6 are concatenated together with the 12 scalar features into a single combined representation.  
 
-![][image5]  
+![Figure 6: Convolutional tower design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_tower.png) 
 
 *Figure 6: Convolutional tower design.*
 
 This combined vector is passed through a fully connected network (FC) consisting of three hidden layers, trimming down from 2380, to 256, to 128, to 64\. Last, the final layer maps the hidden representation to 4 output logits, 1 for each of the classes identified in Section 2\. Each hidden layer is followed by its own ReLU activation and dropout layer of 0.5, where said dropout randomly sets 0.5 of the output width to 0\. This is done to discourage the network from relying too heavily on one or two single features, and helps reduce overfitting. The dropout layers are disabled during evaluation and inference, so predictions are deterministic as opposed to depending on a random dropout chance.  
 
-![][image6]  
+![Figure 7: Fully connected network design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_fc_block.png)  
 
 *Figure 7: Fully connected network design.*
 
