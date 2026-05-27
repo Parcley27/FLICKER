@@ -131,7 +131,7 @@ For our model, we can apply two augmentations fairly easily at training time. Fi
 
 Allow us to recall the example charts given by the paper in Section 2\. We can generate similar graphs using the precomputed data that is to be given to the model. Note that while the last view is displayed with normalized flux, the model does not get this information, only the standard deviation, as shown with the light blue background. For example:  
 
-![][image3]  
+![Figure 4: Data chart for TIC 90104045 (E)](https://github.com/Parcley27/FLICKER/blob/0b79fa71f32ec47558924b927c5602ce4c48c56b/paper/image%20references/90104045.png) 
 
 *Figure 4: Data chart for TIC 90104045 (E).*
 
@@ -245,7 +245,7 @@ On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Bariton
 
 On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the most visible curve in the graph, meaning that precision stays relatively high until starting to steeply drop off at a recall of around 0.8.
 
-![Figure 11: Soprano E AUC-PR Curve (0.8918).](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
+![Figure 11: Soprano E AUC-PR Curve (0.8918)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
 
 *Figure 11: Soprano E AUC-PR Curve (0.8918).*
 
@@ -253,7 +253,7 @@ On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the
 
 When we graph miss rate as a function of the models’ respective confidence thresholds, we compute the following graph:
 
-![Figure 12: Miss rate threshold sweep for each model.](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/miss_rate_vs_threshold.png)  
+![Figure 12: Miss rate threshold sweep for each model](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/miss_rate_vs_threshold.png)  
 
 *Figure 12: Miss rate threshold sweep for each model.*
 
@@ -269,7 +269,7 @@ Confusion matrices are used to evaluate a network's performance across the diffe
 
 Across the test set, we produce the following matrix with FLICKER Solo:  
 
-![Figure 15: Solo confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_solo_pct.png)
+![Figure 13: Solo confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_solo_pct.png)
 
 *Figure 13: Solo confusion matrix (percentage).*
 
