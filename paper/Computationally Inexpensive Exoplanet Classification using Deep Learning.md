@@ -218,21 +218,21 @@ In ML, precision and recall are used to evaluate a model's accuracy against the 
 
 On the test set at an optimized threshold of 0.29, we achieve an AUC-PR of 0.8777. Observing, we see that our precision stays high for recall rates under 0.56, then linearly tapers off, reaching equivalence at 0.80.
 
-![Figure 9: Solo E AUC-PR Curve (0.8777)][https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png]
+![Figure 9: Solo E AUC-PR Curve (0.8777)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
 *Figure 9: Solo E AUC-PR Curve (0.8777).*
 
 5.2.2 Choir Baritone
 
 On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Baritone achieves a higher E AUC-PR, likely due to its higher confidence associated with multiple models working together. Shapewise, it is very similar to Solo, just slightly more pronounced towards 1.0, 1.0.
 
-![Figure 10: Baritone E AUC-PR Curve (0.8914)][https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_baritone.png]
+![Figure 10: Baritone E AUC-PR Curve (0.8914)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_baritone.png)
 *Figure 10: Baritone E AUC-PR Curve (0.8914).*
 
 #### 5.2.3 Choir Soprano
 
 On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the most visible curve in the graph, meaning that precision stays relatively high until starting to steeply drop off at a recall of around 0.8.
 
-![Figure 11: Soprano E AUC-PR Curve (0.8918).][https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png]
+![Figure 11: Soprano E AUC-PR Curve (0.8918).](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
 *Figure 11: Soprano E AUC-PR Curve (0.8918).*
 
 #### 5.2.4 Threshold
