@@ -33,7 +33,7 @@ Using this information, we can pre-filter most TCEs. First, events that are too 
 
 Even with the filters previously described, it would be impractical to want to label every single TCE observed by TESS. The researchers behind Astronet-Triage-v2, therefore, selected \[6\] a subset of TCEs that can be used for training and testing. The dataset was assembled across three batches drawn from the first three years of the TESS mission. Year one contributed 8,992 TCEs from Sector 13 alone — albeit this was a pragmatic choice after hundreds of hours of human labelling had gone into them — which, despite its narrow origin, still managed to contain a diverse range of data artifacts and pointing strategies as the spacecraft itself was settling in and determining the best method for observation. Year 2 added 13,372 TCEs from Sectors 14–26, selected by prioritizing the brightest targets by TESS magnitude, benefiting from the more uniform data characteristics of that observing period. Year 3 added a further 2,588 TCEs from Sectors 27–39, broadening both sky coverage and brightness range.
 
-![][image1]
+![Figure 1 \[6\]: Each TESS observation sector is mapped into the sky](https://content.cld.iop.org/journals/1538-3881/165/3/95/revision1/ajacad85f1_hr.jpg)
 
 *Figure 1 \[6\]: Each TESS observation sector is mapped into the sky.*
 
@@ -55,7 +55,9 @@ It should be mentioned that Tey et al. relate that the labels are not completely
 ### 2.4 Data Separation
 
 Tey et al. manually labelled TCEs using visual representations \[6\] over 2 years. Weekly batches were independently reviewed by 3-7 authors, with conflicting labels discussed to reach consensus when at least one reviewer chose categories E or S. For targets with only B, J, or N votes, labels were weighted by vote count. This multi-reviewer process was designed to minimize labelling errors and create a high-quality dataset. Seen below is an example sheet used by the researchers when they were classifying the dataset.   
-![][image2]  
+
+![Figure 2 \[6\]: Example E and B classification charts](https://content.cld.iop.org/journals/1538-3881/165/3/95/revision1/ajacad85f3a_hr.jpg)  
+
 *Figure 2 \[6\]: Example E and B classification charts.*
 
 These charts show examples of signal data along with their determined label. For example, we can observe that E examples are characterized by a relatively long, flat stretch, followed by a deep dip below which quickly recovers to a normal level. In contrast, B examples show large sweeping curves, with no visible “baseline” height. 
@@ -128,24 +130,33 @@ For our model, we can apply two augmentations fairly easily at training time. Fi
 ### 3.4 Data Example
 
 Allow us to recall the example charts given by the paper in Section 2\. We can generate similar graphs using the precomputed data that is to be given to the model. Note that while the last view is displayed with normalized flux, the model does not get this information, only the standard deviation, as shown with the light blue background. For example:  
+
 ![][image3]  
+
 *Figure 4: Data chart for TIC 90104045 (E).*
 
 Observing, we notice a consistent, flat light curve except for the transit events. We can see that the local and secondary views are very similar, and that they align in the half-period view. Furthermore, we see that the even and odd views line up quite well, indicating that this cannot be a binary system. 
 
 ## 4 Network Design
 
-Our model uses a convolutional neural network architecture derived from \[6\] Astronet-Triage-v2. The model is comprised of two stages: First, a set of parallel convolutional towers processes each view independently. Second, a fully connected network combines its outputs with the scalars to provide a final classification. ![][image4]  
+Our model uses a convolutional neural network architecture derived from \[6\] Astronet-Triage-v2. The model is comprised of two stages: First, a set of parallel convolutional towers processes each view independently. Second, a fully connected network combines its outputs with the scalars to provide a final classification. 
+
+![][image4]  
+
 *Figure 5: High-level network design.*
 
 ### 4.1 Architecture
 
 Each of the 5 views is processed by its own convolutional tower, where each tower consists of three blocks. Each block applies a 1D convolution with a kernel width of 5, followed by batch normalization, a ReLU activation, and a max pooling factor of 2\. The three blocks use 16, 32, and 64 filters, respectively, so each successive block captures increasingly abstract patterns over a wider range of the input. To match the data input as described in Section 3, the global view and even/odd towers fill 4 input channels, while the local, secondary, and half-phase views each take 2 channels. The output of each tower is flattened into a 1D vector, and all 6 are concatenated together with the 12 scalar features into a single combined representation.  
+
 ![][image5]  
+
 *Figure 6: Convolutional tower design.*
 
 This combined vector is passed through a fully connected network (FC) consisting of three hidden layers, trimming down from 2380, to 256, to 128, to 64\. Last, the final layer maps the hidden representation to 4 output logits, 1 for each of the classes identified in Section 2\. Each hidden layer is followed by its own ReLU activation and dropout layer of 0.5, where said dropout randomly sets 0.5 of the output width to 0\. This is done to discourage the network from relying too heavily on one or two single features, and helps reduce overfitting. The dropout layers are disabled during evaluation and inference, so predictions are deterministic as opposed to depending on a random dropout chance.  
+
 ![][image6]  
+
 *Figure 7: Fully connected network design.*
 
 ### 4.2 Training
@@ -219,6 +230,7 @@ In ML, precision and recall are used to evaluate a model's accuracy against the 
 On the test set at an optimized threshold of 0.29, we achieve an AUC-PR of 0.8777. Observing, we see that our precision stays high for recall rates under 0.56, then linearly tapers off, reaching equivalence at 0.80.
 
 ![Figure 9: Solo E AUC-PR Curve (0.8777)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
+
 *Figure 9: Solo E AUC-PR Curve (0.8777).*
 
 5.2.2 Choir Baritone
@@ -226,6 +238,7 @@ On the test set at an optimized threshold of 0.29, we achieve an AUC-PR of 0.877
 On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Baritone achieves a higher E AUC-PR, likely due to its higher confidence associated with multiple models working together. Shapewise, it is very similar to Solo, just slightly more pronounced towards 1.0, 1.0.
 
 ![Figure 10: Baritone E AUC-PR Curve (0.8914)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_baritone.png)
+
 *Figure 10: Baritone E AUC-PR Curve (0.8914).*
 
 #### 5.2.3 Choir Soprano
@@ -233,13 +246,15 @@ On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Bariton
 On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the most visible curve in the graph, meaning that precision stays relatively high until starting to steeply drop off at a recall of around 0.8.
 
 ![Figure 11: Soprano E AUC-PR Curve (0.8918).](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
+
 *Figure 11: Soprano E AUC-PR Curve (0.8918).*
 
 #### 5.2.4 Threshold
 
 When we graph miss rate as a function of the models’ respective confidence thresholds, we compute the following graph:
 
-![][image10]  
+![Figure 12: Miss rate threshold sweep for each model.](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/miss_rate_vs_threshold.png)  
+
 *Figure 12: Miss rate threshold sweep for each model.*
 
 In this graph, the miss rate of each model is computed at confidence intervals of 5 x 10\-4 and interpolated horizontally across until the next point.
@@ -253,7 +268,9 @@ Confusion matrices are used to evaluate a network's performance across the diffe
 ##### 5.3.1 Solo
 
 Across the test set, we produce the following matrix with FLICKER Solo:  
-![][image11]  
+
+![Figure 15: Solo confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_solo_pct.png)
+
 *Figure 13: Solo confusion matrix (percentage).*
 
 Observing, we notice that the model achieves high confidence for E, B, and J classes, with low confidence in S classifications. We can also see that the network has a strong tendency to guess E when it is unsure. This is expected with the way that training is weighted, and how we prefer over-guessing E to improve recall.
@@ -262,7 +279,8 @@ Observing, we notice that the model achieves high confidence for E, B, and J cla
 
 Across the test set, we produce the following matrix with Choir Baritone:
 
-![][image12]  
+![Figure 14: Baritone confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_baratone_pct.png)
+
 *Figure 14: Baritone confusion matrix (percentage).*
 
 Similar to Solo, we notice that the model achieves high confidence for E, B, and J classes, with low confidence in S classifications. Important differences include a \+0.8% confidence in E, \-6.1% confidence in J, and a \+9.1% confidence in S. Since 10 models are deciding in a group consensus, each model might have higher confidence in a particular “strand” of S examples, which combine to produce a higher net confidence. We also see a \+9.1% increase in prediction rate for S. This is expected as a result of heavy favouring towards E classes, though, favourably, single transit events are much easier for human evaluators to pick out from E than B, for example.
@@ -271,7 +289,8 @@ Similar to Solo, we notice that the model achieves high confidence for E, B, and
 
 Across the test set, we produce the following matrix with Choir Soprano:
 
-![][image13]  
+![Figure 15: Soprano confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_soprano_pct.png)
+
 *Figure 15: Soprano confusion matrix (percentage).*
 
 Similar to Baritone, we notice again that the model achieves high confidence for E classes, though conversely looses confidence in B and J, while gaining hugely in S. Specifically, \+5.7% in E, \-15.2% in S, \-5.7% in B, and \-9.1% in J when respectively compared to confusion in Solo. These results show the somewhat unpredictability of Soprano; Similar to Baritone, the model is highly trained to favour E, and does so at the cost of even more confidence loss in the S class. The model has effectively learned that any sharp dip in a given light curve is likely an exoplanet — likely due to data imbalance and training setup — and therefore will guess E even when only one is observed.
