@@ -1,4 +1,4 @@
-# FLICKER: Searching for Exoplanets with ML
+# FLICKER: Computationally Inexpensive Exoplanet Classification using Deep Learning
 
 ### Some background?
 
