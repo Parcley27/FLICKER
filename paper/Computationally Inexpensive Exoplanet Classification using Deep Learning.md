@@ -131,7 +131,7 @@ For our model, we can apply two augmentations fairly easily at training time. Fi
 
 Allow us to recall the example charts given by the paper in Section 2\. We can generate similar graphs using the precomputed data that is to be given to the model. Note that while the last view is displayed with normalized flux, the model does not get this information, only the standard deviation, as shown with the light blue background. For example:  
 
-![Figure 4: Data chart for TIC 90104045 (E)](https://github.com/Parcley27/FLICKER/blob/0b79fa71f32ec47558924b927c5602ce4c48c56b/paper/image%20references/90104045.png) 
+![Figure 4: Data chart for TIC 90104045 (E)](https://pierceoxley.ca/flicker/image-references/90104045.png) 
 
 *Figure 4: Data chart for TIC 90104045 (E).*
 
@@ -141,7 +141,7 @@ Observing, we notice a consistent, flat light curve except for the transit event
 
 Our model uses a convolutional neural network architecture derived from \[6\] Astronet-Triage-v2. The model is comprised of two stages: First, a set of parallel convolutional towers processes each view independently. Second, a fully connected network combines its outputs with the scalars to provide a final classification. 
 
-![Figure 5: High level network design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_design.png)  
+![Figure 5: High level network design](https://pierceoxley.ca/flicker/image-references/network_design.png)  
 
 *Figure 5: High-level network design.*
 
@@ -149,13 +149,13 @@ Our model uses a convolutional neural network architecture derived from \[6\] As
 
 Each of the 5 views is processed by its own convolutional tower, where each tower consists of three blocks. Each block applies a 1D convolution with a kernel width of 5, followed by batch normalization, a ReLU activation, and a max pooling factor of 2\. The three blocks use 16, 32, and 64 filters, respectively, so each successive block captures increasingly abstract patterns over a wider range of the input. To match the data input as described in Section 3, the global view and even/odd towers fill 4 input channels, while the local, secondary, and half-phase views each take 2 channels. The output of each tower is flattened into a 1D vector, and all 6 are concatenated together with the 12 scalar features into a single combined representation.  
 
-![Figure 6: Convolutional tower design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_tower.png) 
+![Figure 6: Convolutional tower design](https://pierceoxley.ca/flicker/image-references/network_tower.png) 
 
 *Figure 6: Convolutional tower design.*
 
 This combined vector is passed through a fully connected network (FC) consisting of three hidden layers, trimming down from 2380, to 256, to 128, to 64\. Last, the final layer maps the hidden representation to 4 output logits, 1 for each of the classes identified in Section 2\. Each hidden layer is followed by its own ReLU activation and dropout layer of 0.5, where said dropout randomly sets 0.5 of the output width to 0\. This is done to discourage the network from relying too heavily on one or two single features, and helps reduce overfitting. The dropout layers are disabled during evaluation and inference, so predictions are deterministic as opposed to depending on a random dropout chance.  
 
-![Figure 7: Fully connected network design](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/network_fc_block.png)  
+![Figure 7: Fully connected network design](https://pierceoxley.ca/flicker/image-references/network_fc_block.png)  
 
 *Figure 7: Fully connected network design.*
 
@@ -229,7 +229,7 @@ In ML, precision and recall are used to evaluate a model's accuracy against the 
 
 On the test set at an optimized threshold of 0.29, we achieve an AUC-PR of 0.8777. Observing, we see that our precision stays high for recall rates under 0.56, then linearly tapers off, reaching equivalence at 0.80.
 
-![Figure 9: Solo E AUC-PR Curve (0.8777)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
+![Figure 9: Solo E AUC-PR Curve (0.8777)](https://pierceoxley.ca/flicker/image-references/pr_curve_solo.png)
 
 *Figure 9: Solo E AUC-PR Curve (0.8777).*
 
@@ -237,7 +237,7 @@ On the test set at an optimized threshold of 0.29, we achieve an AUC-PR of 0.877
 
 On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Baritone achieves a higher E AUC-PR, likely due to its higher confidence associated with multiple models working together. Shapewise, it is very similar to Solo, just slightly more pronounced towards 1.0, 1.0.
 
-![Figure 10: Baritone E AUC-PR Curve (0.8914)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_baritone.png)
+![Figure 10: Baritone E AUC-PR Curve (0.8914)](https://pierceoxley.ca/flicker/image-references/pr_curve_baritone.png)
 
 *Figure 10: Baritone E AUC-PR Curve (0.8914).*
 
@@ -245,7 +245,7 @@ On the test set, we achieve an optimized E AUC-PR of 0.8914. We see that Bariton
 
 On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the most visible curve in the graph, meaning that precision stays relatively high until starting to steeply drop off at a recall of around 0.8.
 
-![Figure 11: Soprano E AUC-PR Curve (0.8918)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/pr_curve_solo.png)
+![Figure 11: Soprano E AUC-PR Curve (0.8918)](https://pierceoxley.ca/flicker/image-references/pr_curve_solo.png)
 
 *Figure 11: Soprano E AUC-PR Curve (0.8918).*
 
@@ -253,7 +253,7 @@ On the test set, we achieve an optimized E AUC-PR of 0.8918. Here we observe the
 
 When we graph miss rate as a function of the models’ respective confidence thresholds, we compute the following graph:
 
-![Figure 12: Miss rate threshold sweep for each model](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/miss_rate_vs_threshold.png)  
+![Figure 12: Miss rate threshold sweep for each model](https://pierceoxley.ca/flicker/image-references/miss_rate_vs_threshold.png)  
 
 *Figure 12: Miss rate threshold sweep for each model.*
 
@@ -269,7 +269,7 @@ Confusion matrices are used to evaluate a network's performance across the diffe
 
 Across the test set, we produce the following matrix with FLICKER Solo:  
 
-![Figure 13: Solo confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_solo_pct.png)
+![Figure 13: Solo confusion matrix (percentage)](https://pierceoxley.ca/flicker/image-references/confusion_solo_pct.png)
 
 *Figure 13: Solo confusion matrix (percentage).*
 
@@ -279,7 +279,7 @@ Observing, we notice that the model achieves high confidence for E, B, and J cla
 
 Across the test set, we produce the following matrix with Choir Baritone:
 
-![Figure 14: Baritone confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_baratone_pct.png)
+![Figure 14: Baritone confusion matrix (percentage)](https://pierceoxley.ca/flicker/image-references/confusion_baritone_pct.png)
 
 *Figure 14: Baritone confusion matrix (percentage).*
 
@@ -289,7 +289,7 @@ Similar to Solo, we notice that the model achieves high confidence for E, B, and
 
 Across the test set, we produce the following matrix with Choir Soprano:
 
-![Figure 15: Soprano confusion matrix (percentage)](https://github.com/Parcley27/FLICKER/blob/cda7805b0629c12c96503af97e3b2d7c30ee84d7/paper/image%20references/confusion_soprano_pct.png)
+![Figure 15: Soprano confusion matrix (percentage)](https://pierceoxley.ca/flicker/image-references/confusion_soprano_pct.png)
 
 *Figure 15: Soprano confusion matrix (percentage).*
 
@@ -379,7 +379,7 @@ FLICKER is designed to be computationally inexpensive, meaning that the model ca
 
 ## Appendix
 
-The complete repository, including code, writing, benchmarks, and more, as developed for this project, can be found on GitHub (https://github.com/Parcley27/FLICKER) or otherwise pulled from git.pierceoxley.ca/FLICKER.
+The complete repository, including code, writing, benchmarks, and more, as developed for this project, can be found on GitHub (https://github.com/Parcley27/FLICKER) or otherwise pulled from [git.pierceoxley.ca/FLICKER](git.pierceoxley.ca/FLICKER). Images generated for this paper are available at [https://github.com/Parcley27/FLICKER/paper/image-references/](https://github.com/Parcley27/FLICKER/paper/image-references/), and pulled from [pierceoxley.ca/flicker/image-references/](pierceoxley.ca/flicker/image-references/) for use in markdown documents.
 
 A collection of acronyms and definitions that may be useful to recall for this paper is found as follows:
 
