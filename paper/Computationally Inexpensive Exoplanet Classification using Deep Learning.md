@@ -201,11 +201,11 @@ FLICKER was trained using a consumer PC with freely and widely available softwar
 
 #### 5.1.1 Preprocessing
 
-When preprocessing the data, performance depends heavily on the number of concurrent workers assigned. With 16 workers, the CPU manages the full dataset in $1.329 \times 10^3$ s or 22.15 min, at a total rate of 0.86 worker seconds per TCE. System memory is found to be around 1.1 GB worker$^{-1}$ (1.1 GB per worker). We expect linear performance with respect to worker count, so long as system memory and CPU performance are not bottlenecked.
+When preprocessing the data, performance depends heavily on the number of concurrent workers assigned. With 16 workers, the CPU manages the full dataset in $1.329 \times 10^3$ s or 22.15 min, at a total rate of 0.86 worker seconds per TCE. System memory is found to be around 1.1 GB worker $^{-1}$ (1.1 GB per worker). We expect linear performance with respect to worker count, so long as system memory and CPU performance are not bottlenecked.
 
 #### 5.1.2 Training
 
-When training the model on GPU with CUDA, we observe the following metrics. Throughput averages around 76 steps s$^{-1}$ or 13.2 ms step$^{-1}$. For a complete training run of FLICKER Solo across $2 \times 10^5$ steps, this totals 363 s, or \~4.4 min. For the 10 model Choir run with $2 \times 10^6$ steps, this comes to 2631 s, or \~44 min. These metrics assume no performance degradation due to thermal losses. VRAM peaks at 46 MB while training, meaning compute is the bottleneck rather than memory usage. System memory usage is nearly constant at 7558 MB for each model.
+When training the model on GPU with CUDA, we observe the following metrics. Throughput averages around 76 steps s $^{-1}$ or 13.2 ms step $^{-1}$. For a complete training run of FLICKER Solo across $2 \times 10^5$ steps, this totals 363 s, or \~4.4 min. For the 10 model Choir run with $2 \times 10^6$ steps, this comes to 2631 s, or \~44 min. These metrics assume no performance degradation due to thermal losses. VRAM peaks at 46 MB while training, meaning compute is the bottleneck rather than memory usage. System memory usage is nearly constant at 7558 MB for each model.
 
 #### 5.1.3 Inference
 
@@ -213,17 +213,17 @@ To evaluate the inference performance of the various FLICKER models, we ran the 
 
 | Model | Device | Compute Time | Throughput | Per TCE |
 | :---- | :---- | :---- | :---- | :---- |
-| **Solo** | GPU | 418 ms | 5,818 TCE s$^{-1}$ | 0.17 ms |
-| **Solo** | CPU | 2,709 ms | 897 TCE s$^{-1}$ | 1.1 ms |
-| **Choir** | GPU | 3,362 ms | 7,231 TCE model s$^{-1}$ <br>(7,231 TCEs per second per model) | 0.14 ms model$^{-1}$ |
+| **Solo** | GPU | 418 ms | 5,818 TCE s $^{-1}$ | 0.17 ms |
+| **Solo** | CPU | 2,709 ms | 897 TCE s $^{-1}$ | 1.1 ms |
+| **Choir** | GPU | 3,362 ms | 7,231 TCE model s $^{-1}$ <br>(7,231 TCEs per second per model) | 0.14 ms model $^{-1}$ |
 
 *Figure 8: Model inference summary metrics.*
 
-When performing inference, we observe a peak VRAM usage of 29 MB. System RAM usage peaks at 1.4 GB model$^{-1}$, and averages around 900 MB model$^{-1}$.
+When performing inference, we observe a peak VRAM usage of 29 MB. System RAM usage peaks at 1.4 GB model $^{-1}$, and averages around 900 MB model $^{-1}$.
 
 ### 5.2 Precision, Recall, and E AUC-PRw
 
-In machine learning, precision and recall are used to evaluate a model's accuracy against the number of correct answers. Both are scored out of 1; perfect precision means that every guess a model makes is correct, while perfect recall means that the model correctly identifies every desired class. For a model with four outputs, we would expect random guesses to provide precision and recall scores of 0.25 each (4$^{-1}$). To compare these two values, a curve is constructed with corresponding precision and recall values, where a perfect model achieves an AUC (area under the curve) of 1.0. With four outputs, random guessing would yield an AUC-PR of 0.625 (0.25 x 0.25). Precision and recall are competing factors, such that a higher value of one tends to have a lower value of the other associated with it. For use in FLICKER, we adapt this AUC-PR to evaluate specifically for the E class — while our models can provide a more standard AUC-PR, we are only interested in classifying signals as E or not E. Recall that E TCEs are most often composed of exoplanets and eclipsing binaries. 
+In machine learning, precision and recall are used to evaluate a model's accuracy against the number of correct answers. Both are scored out of 1; perfect precision means that every guess a model makes is correct, while perfect recall means that the model correctly identifies every desired class. For a model with four outputs, we would expect random guesses to provide precision and recall scores of 0.25 each (4 $^{-1}$). To compare these two values, a curve is constructed with corresponding precision and recall values, where a perfect model achieves an AUC (area under the curve) of 1.0. With four outputs, random guessing would yield an AUC-PR of 0.625 (0.25 x 0.25). Precision and recall are competing factors, such that a higher value of one tends to have a lower value of the other associated with it. For use in FLICKER, we adapt this AUC-PR to evaluate specifically for the E class — while our models can provide a more standard AUC-PR, we are only interested in classifying signals as E or not E. Recall that E TCEs are most often composed of exoplanets and eclipsing binaries. 
 
 #### 5.2.1 Solo
 
@@ -325,7 +325,7 @@ FLICKER’s central goal is to run usefully on consumer hardware; the design cho
 
 The hardware results from Section 5.1 make a compelling computational argument for these ideas. Training a full Solo model takes less than 5 minutes on a mid-range consumer GPU, and a complete ten-model Choir run finishes in less than an hour. More importantly, the video memory footprint of the model is incredibly small, peaking under 50 MB under training and 30 MB during inference, meaning the model occupies nearly no VRAM when being used. In principle, FLICKER could train and run on hardware with as little as a few hundred megabytes of dedicated GPU memory, within the range of integrated graphics or entry-level discrete GPUs. System RAM is more impacted, though still at a very reasonable level for 1 model, with 10 model inference runs better suited for mid to high-end consumer systems. However, users whose hardware cannot accommodate this can fall back to solo with only a modest performance cost, try running fewer concurrent models, or run the models in series rather than in parallel.
 
-On throughput, inference is similarly accessible. Solo classified nearly $6 \times 10^3$ TCE s$^{-1}$ on GPU during testing, meaning the full 25000 example dataset is processed in under 5 seconds. Even on the CPU alone, Solo can process up to $9 \times 10^2$ TCE s$^{-1}$ on a decent CPU, meaning that a researcher with no dedicated GPU could still classify a personal dataset of several thousand candidates in a matter of seconds. For the use case FLICKER is designed around, where the goal is to reduce a large set of candidates to a manageable shortlist for human review, these speeds mean the models add no meaningful delay to a given research window.
+On throughput, inference is similarly accessible. Solo classified nearly $6 \times 10^3$ TCE s $^{-1}$ on GPU during testing, meaning the full 25000 example dataset is processed in under 5 seconds. Even on the CPU alone, Solo can process up to $9 \times 10^2$ TCE s $^{-1}$ on a decent CPU, meaning that a researcher with no dedicated GPU could still classify a personal dataset of several thousand candidates in a matter of seconds. For the use case FLICKER is designed around, where the goal is to reduce a large set of candidates to a manageable shortlist for human review, these speeds mean the models add no meaningful delay to a given research window.
 
 ### 6.4 Comparison to Past Works
 
@@ -413,7 +413,7 @@ Scientific notation quick reference:
 
 * $10^{-6}$ \= 0.000001
 * $10^{-3}$ \= 0.001
-* $10^{-1}$ \= 0.1 \= 1 per ten, s$^{-1}$ \= 1 per second, etc.  
+* $10^{-1}$ \= 0.1 \= 1 per ten, s $^{-1}$ \= 1 per second, etc.  
 * $10^0$ \= 1  
 * $10^1$ \= 10  
 * $10^3$ \= 1,000  
